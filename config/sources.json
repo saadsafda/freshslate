@@ -1,0 +1,90 @@
+{
+  "_comment": "Machine-readable source config. Human-readable mirror: deals/_config/parish-sources.md",
+  "_verified": "2026-08-04",
+  "rate_limit_seconds": 1.0,
+  "page_size": 1000,
+
+  "prohibited_hosts": [
+    "nolaassessor.com",
+    "www.nolaassessor.com"
+  ],
+
+  "parishes": {
+    "orleans": {
+      "name": "Orleans Parish",
+      "enabled": true,
+      "domain": "data.nola.gov",
+      "has_owner_field": false,
+      "sources": [
+        {
+          "id": "orleans-code-enforcement",
+          "dataset": "u6yx-v2tw",
+          "signal_type": "code_violation",
+          "label": "Code Enforcement All Cases",
+          "date_field": "casefiled",
+          "dedup_field": "caseid",
+          "where": "o_c='Open'",
+          "field_map": {
+            "source_case_no": "caseno",
+            "situs_address": "geoaddress",
+            "situs_address_raw": "location",
+            "parcel_id": "geopin",
+            "filing_date": "casefiled",
+            "status_date": "statdate",
+            "stage": "stage",
+            "notes": "keystatus"
+          }
+        },
+        {
+          "id": "orleans-sheriff-sales",
+          "dataset": "d52w-8nva",
+          "signal_type": "foreclosure",
+          "label": "Sheriff Sales - Lien Foreclosures",
+          "date_field": null,
+          "dedup_field": "cdccasenumber",
+          "where": "salestatus='Pending'",
+          "field_map": {
+            "source_case_no": "cdccasenumber",
+            "situs_address": "propertyaddress",
+            "owner_of_record": "defendant",
+            "notes": "casetitle",
+            "status_date": "saledate"
+          }
+        }
+      ]
+    },
+
+    "east_baton_rouge": {
+      "name": "East Baton Rouge Parish",
+      "enabled": true,
+      "domain": "data.brla.gov",
+      "has_owner_field": true,
+      "sources": [
+        {
+          "id": "ebr-adjudicated",
+          "dataset": "a4h4-zi7e",
+          "signal_type": "tax_delinquency",
+          "label": "Adjudicated Property",
+          "date_field": null,
+          "dedup_field": "assessment_num",
+          "where": null,
+          "field_map": {
+            "source_case_no": "assessment_num",
+            "parcel_id": "assessment_num",
+            "situs_address": "physadd",
+            "owner_of_record": "owner",
+            "notes": "legal",
+            "zip_code": "zip_code"
+          }
+        }
+      ]
+    },
+
+    "jefferson": {
+      "name": "Jefferson Parish",
+      "enabled": false,
+      "disabled_reason": "Recon incomplete - no permitted open-data API identified. Requires form/XHR analysis. Do not improvise a source.",
+      "sources": []
+    }
+  }
+}
