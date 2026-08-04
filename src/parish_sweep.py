@@ -16,6 +16,7 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -161,8 +162,18 @@ def normalize(raw, source, parish_key, parish_cfg, domain, source_url, retrieved
     rec["equity_estimate"] = None
     rec["equity_source"] = "unavailable"
 
-    dedup_val = raw.get(source["dedup_field"])
-    rec["dedup_key"] = f"{parish_key}:{source['dataset']}:{dedup_val}"
+    # Dedup key. Some sources need a composite: EBR adjudicated property repeats
+    # assessment_num once per tax year adjudicated, so the parcel number alone
+    # collapses distinct facts about one property into a single record.
+    df = source["dedup_field"]
+    fields = df if isinstance(df, list) else [df]
+    parts = [str(raw.get(f, "")) for f in fields]
+    if len(fields) == 1:
+        ident = parts[0]
+    else:
+        # Hash composites: components like `legal` are unbounded free text.
+        ident = hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:16]
+    rec["dedup_key"] = f"{parish_key}:{source['dataset']}:{ident}"
 
     flags = scan_injection(raw)
     rec["injection_flags"] = [{"field": f, "text": t} for f, t in flags]
@@ -257,6 +268,8 @@ def main():
     retrieved_at = datetime.now(timezone.utc).isoformat()
 
     new_records, errors, skipped = [], [], []
+    batch_keys = set()
+    intra_run_dupes = 0
 
     for parish_key, parish_cfg in config["parishes"].items():
         if args.parish and parish_key != args.parish:
@@ -285,8 +298,16 @@ def main():
 
             for raw in rows:
                 rec = normalize(raw, source, parish_key, parish_cfg, parish_cfg["domain"], url, retrieved_at)
-                if rec["dedup_key"] in seen:
+                key = rec["dedup_key"]
+                if key in seen:
                     continue
+                # Also dedupe WITHIN this run. Without this, a source with a
+                # non-unique dedup field reports more records than it persists,
+                # and the surplus reappears as "new" on every subsequent sweep.
+                if key in batch_keys:
+                    intra_run_dupes += 1
+                    continue
+                batch_keys.add(key)
                 rec["signal_strength"] = signal_strength(rec)
                 new_records.append(rec)
 
@@ -369,12 +390,26 @@ def main():
     with open(report_path, "w") as f:
         f.write(report)
 
+    before = len(seen)
     for r in new_records:
         seen[r["dedup_key"]] = {
             "first_seen": retrieved_at,
             "signal_type": r["signal_type"],
             "parish": r["parish_key"],
         }
+    persisted = len(seen) - before
+
+    # Integrity guard: every record reported as new must persist to seen.json.
+    # If these diverge, dedup keys are colliding and the operator is being shown
+    # a count that will re-appear as "new" on the next sweep. Fail loudly.
+    if persisted != len(new_records):
+        log(
+            f"\nFATAL: reported {len(new_records)} new records but only {persisted} "
+            f"persisted to seen.json. Dedup keys are colliding for at least one "
+            f"source — check `dedup_field` in config/sources.json. Not writing seen.json."
+        )
+        return 2
+
     save_seen(seen)
 
     json_path = os.path.join(INBOX_DIR, f"{today}-sweep.json")

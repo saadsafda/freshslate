@@ -66,10 +66,11 @@
           "signal_type": "tax_delinquency",
           "label": "Adjudicated Property",
           "date_field": null,
-          "dedup_field": "assessment_num",
+          "dedup_field": ["assessment_num", "tax_roll_year", "legal"],
           "where": null,
           "field_map": {
             "source_case_no": "assessment_num",
+            "tax_roll_year": "tax_roll_year",
             "parcel_id": "assessment_num",
             "situs_address": "physadd",
             "owner_of_record": "owner",
