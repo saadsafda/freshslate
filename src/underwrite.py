@@ -43,12 +43,23 @@ class CostTable:
         with open(self.path) as f:
             text = f.read()
 
-        # Approval state. Anything other than an explicit APPROVED is treated as
-        # unapproved -- fail closed, not open.
+        # Approval state. Three states, and only one permits an unbannered offer:
+        #   APPROVED  - operator reviewed and signed off. Banner drops.
+        #   TESTING   - placeholder costs, cleared for development. Banner stays,
+        #               reworded so it is obvious these are not real figures.
+        #   anything else - fail closed.
+        # TESTING exists so development is not blocked, WITHOUT letting invented
+        # numbers masquerade as operator-approved pricing.
         m = re.search(r"^\*\*Status:.*$", text, re.MULTILINE)
         self.approval_line = m.group(0) if m else "(no status line)"
-        self.approved = bool(m and "APPROVED" in m.group(0).upper()
-                             and "NOT OPERATOR-APPROVED" not in m.group(0).upper())
+        upper = m.group(0).upper() if m else ""
+        self.testing = "TESTING" in upper
+        self.approved = bool(
+            m and "APPROVED" in upper
+            and "NOT OPERATOR-APPROVED" not in upper
+            and "NOT APPROVED" not in upper
+            and not self.testing
+        )
 
         # Table rows: | Item | Unit | $Cost | Notes |
         for row in re.finditer(
@@ -91,6 +102,14 @@ class CostTable:
     def warning_banner(self):
         if self.approved:
             return None
+        if self.testing:
+            return (
+                "🧪 **TESTING MODE — SYNTHETIC COSTS.** The unit prices behind this estimate are "
+                "placeholder figures generated during development. **No operator or contractor "
+                "has ever reviewed them.** This output is for testing the calculation only — it "
+                "is not an estimate of any real property's repair cost and must not be used to "
+                "make, support, or justify an offer."
+            )
         return (
             "⚠️ **PRELIMINARY — NOT OPERATOR-APPROVED COSTS.** This estimate uses placeholder "
             "figures from `deals/_config/costs-la.md`, which has not been reviewed or approved "
