@@ -1,0 +1,31 @@
+{
+  "_comment": "Template for ~/.openclaw/cron/jobs.json",
+
+  "_architecture_note": "Module 13 denies the `exec` tool, so the agent cannot run the Python scripts itself. Instead, SYSTEM cron runs them and writes to deals/_inbox/; the agent reads those files via the filesystem MCP. This keeps deterministic extraction outside the model AND keeps shell access away from the agent. Both properties matter.",
+
+  "_system_crontab": [
+    "# Add to the operator user's crontab (crontab -e), NOT to OpenClaw:",
+    "0 4 * * *  cd /home/operator/deals && /usr/bin/python3 src/parish_sweep.py --since $(date -d '7 days ago' +\\%Y-\\%m-\\%d) >> logs/sweep.log 2>&1"
+  ],
+
+  "jobs": [
+    {
+      "id": "morning-brief",
+      "schedule": "0 7 * * 1-5",
+      "agent": "acquisitions",
+      "prompt": "Run deal-desk-brief. Read today's sweep from deals/_inbox/ and send me the briefing. If the sweep file is missing or reports source errors, lead with that."
+    },
+    {
+      "id": "closing-watch-am",
+      "schedule": "0 8 * * 1-5",
+      "agent": "acquisitions",
+      "prompt": "Run closing-watch. Alert only on exceptions."
+    },
+    {
+      "id": "closing-watch-pm",
+      "schedule": "0 16 * * 1-5",
+      "agent": "acquisitions",
+      "prompt": "Run closing-watch. Alert only on exceptions."
+    }
+  ]
+}

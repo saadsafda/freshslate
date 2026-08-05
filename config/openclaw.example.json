@@ -1,0 +1,72 @@
+{
+  "_comment": "Template for ~/.openclaw/openclaw.json. Copy, fill in secrets, chmod 600. NEVER commit the real file.",
+
+  "gateway": {
+    "bindHost": "127.0.0.1",
+    "port": 18789
+  },
+
+  "auth": {
+    "token": "REPLACE-ME: openssl rand -hex 32"
+  },
+
+  "channels": {
+    "telegram": {
+      "dmPolicy": "allowlist",
+      "allowFrom": ["REPLACE-ME: operator telegram user id"],
+      "groupPolicy": "disabled",
+      "requireMention": true,
+      "mediaMaxMb": 25
+    }
+  },
+
+  "browser": {
+    "enabled": true,
+    "headless": false,
+    "defaultProfile": "openclaw"
+  },
+
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "anthropic/claude-sonnet-5",
+        "fallbacks": ["anthropic/claude-haiku-4-5-20251001"]
+      },
+      "heartbeat": {
+        "every": "60m",
+        "model": "anthropic/claude-haiku-4-5-20251001",
+        "activeHours": { "start": 7, "end": 21, "timezone": "America/Chicago" }
+      },
+      "mcpServers": {
+        "filesystem": {
+          "command": "npx",
+          "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/operator/deals"]
+        }
+      },
+      "tools": {
+        "allow": ["read", "write", "edit", "browser", "web_search", "web_fetch",
+                  "memory_search", "memory_get", "cron"],
+        "deny": ["exec", "gateway", "message"]
+      }
+    },
+    "list": [
+      {
+        "id": "acquisitions",
+        "default": true,
+        "name": "Acquisitions Analyst",
+        "workspace": "~/.openclaw/workspace",
+        "identity": { "name": "Analyst" }
+      }
+    ]
+  },
+
+  "_deny_rationale": {
+    "exec": "Shell access is not needed for this workload. Denying it removes the highest-severity outcome of a successful prompt injection.",
+    "gateway": "Blocks the agent from modifying its own configuration or security posture.",
+    "message": "THE CRITICAL ONE. Without it the agent physically cannot contact a seller, buyer, heir, or third party. Human-in-the-loop stops being a policy the model might reason around and becomes an architectural fact. Do not re-enable this for a demo."
+  },
+
+  "_note_on_exec": "The parish sweep and underwrite scripts are Python. With exec denied, the agent cannot run them directly -- run them via cron (see cron/jobs.json) writing to deals/_inbox/, which the agent reads with the filesystem MCP. This is deliberate: scheduled deterministic jobs do not need agent shell access.",
+
+  "_model_ids_note": "Model identifiers go stale. Verify against current Anthropic documentation at deployment rather than trusting this file."
+}
