@@ -261,6 +261,10 @@ def main():
     ap.add_argument("--since", help="Only records after this date, YYYY-MM-DD")
     ap.add_argument("--limit", type=int, help="Max records per source (testing)")
     ap.add_argument("--dry-run", action="store_true", help="Do not write seen.json or report")
+    ap.add_argument("--enrich", type=int, metavar="N",
+                    help="Enrich the top N records via licensed provider APIs "
+                         "(RentCast/ATTOM). Costs API budget. Requires an API key; "
+                         "without one, records keep null fields and provenance.")
     args = ap.parse_args()
 
     config = load_config()
@@ -312,6 +316,23 @@ def main():
                 new_records.append(rec)
 
     new_records.sort(key=lambda r: r["signal_strength"], reverse=True)
+
+    # Enrichment is opt-in and capped: provider free tiers are small (RentCast: 50/mo)
+    # and enriching a 50k-record sweep would be a real bill. Top N only, by signal.
+    if args.enrich:
+        try:
+            from providers import enrich as enrich_record, budget_report
+            targets = [r for r in new_records if r.get("situs_address")][:args.enrich]
+            log(f"\nEnriching top {len(targets)} records...")
+            for r in targets:
+                enrich_record(r)
+            rep = budget_report()
+            if rep:
+                log("  API budget: " + ", ".join(
+                    f"{p} {v['used']}/{v['budget']}" for p, v in rep.items()))
+        except ImportError:
+            log("WARN: providers.py not importable; skipping enrichment.")
+
     flagged = [r for r in new_records if r["injection_flags"]]
 
     # ---- report ----
@@ -367,8 +388,22 @@ def main():
             f"- **Date:** {r.get('filing_date') or r.get('status_date') or '_n/a_'}",
             f"- **Source:** {r['source_label']} (`{r['source_dataset']}`)",
             f"- **Retrieved:** {r['retrieved_at']}",
-            "",
         ]
+        if r.get("enrichment_status"):
+            eq = r.get("equity_estimate")
+            eq_txt = (f"${eq:,.0f} ({r.get('equity_estimate_pct')}%) — "
+                      f"**{r.get('equity_confidence')} confidence**, {r.get('equity_source')}"
+                      if eq is not None else f"_{r.get('equity_source')}_")
+            ab = r.get("absentee_owner")
+            lines += [
+                f"- **Absentee owner:** {ab if ab is not None else '_unknown_'} "
+                f"({r.get('absentee_source')})",
+                f"- **Equity estimate:** {eq_txt}",
+                f"- **Enrichment:** {r['enrichment_status']}",
+            ]
+            if r.get("equity_caveat"):
+                lines.append(f"  - ⚠️ {r['equity_caveat']}")
+        lines.append("")
 
     lines += [
         "---",
