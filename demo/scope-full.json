@@ -1,0 +1,11 @@
+{"_comment":"Demo scope: realistic 8-line rehab. Thin-evidence guard should NOT fire.",
+ "line_items":[
+ {"item":"Architectural shingle, tear-off + replace","quantity":18,"confidence":"medium","observation":"Granule loss across front plane; two patched areas"},
+ {"item":"Full bath gut + rebuild","quantity":1,"confidence":"low","observation":"Fixtures dated; no photo of supply lines"},
+ {"item":"Full kitchen, builder grade","quantity":1,"confidence":"low","observation":"Cabinets water-damaged at sink base"},
+ {"item":"Pier leveling / shimming","quantity":14,"confidence":"low","observation":"Visible slope front-to-back; piers partially obscured"},
+ {"item":"Sheetrock, hang + finish","quantity":1400,"confidence":"medium","observation":"Ceiling staining in two rooms"},
+ {"item":"LVP flooring","quantity":1150,"confidence":"high","observation":"Subfloor exposed throughout"},
+ {"item":"HVAC, 3-ton split system","quantity":1,"confidence":"medium","observation":"Condenser present, age unknown"},
+ {"item":"Custom ironwork balcony restoration","quantity":1,"confidence":"low","observation":"Not in cost table - demonstrates unpriced handling"}
+]}

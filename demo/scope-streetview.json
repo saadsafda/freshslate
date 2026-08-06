@@ -1,0 +1,4 @@
+{"_comment":"Demo scope from exterior-only Street View photos. Thin-evidence guard SHOULD fire.",
+ "line_items":[
+ {"item":"Hardie / fiber cement siding","quantity":1200,"confidence":"low","observation":"House wrap exposed; no interior or systems views available"}
+]}
