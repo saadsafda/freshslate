@@ -1,5 +1,8 @@
 # Secrets — never commit
 .env
+*.env
+!*.env.example
+secrets/
 *.key
 *.pem
 credentials/
@@ -9,6 +12,7 @@ credentials/
 # distress. Keep it local; do not commit to a shared repo.
 deals/_inbox/*.md
 deals/_inbox/*.json
+deals/_inbox/*.jsonl
 deals/_active/
 deals/_index/seen.json
 
