@@ -1,0 +1,19 @@
+{
+  "id": "freshslate",
+  "name": "Acquisitions Analyst",
+  "workspace": "/Users/mac/.openclaw/agents/freshslate",
+  "agentDir": "/Users/mac/.openclaw/agents/freshslate/agent",
+  "model": "anthropic/claude-sonnet-5",
+  "tools": {
+    "profile": "full",
+    "deny": [
+      "exec",
+      "process",
+      "gateway",
+      "message"
+    ],
+    "fs": {
+      "workspaceOnly": true
+    }
+  }
+}
