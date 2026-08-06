@@ -75,7 +75,14 @@ def check_script_gate():
 
     script_text = None
     if is_open:
-        m = re.search(r"## Approved script text\n\n(.+?)\n\n##", text, re.DOTALL)
+        # Anchored to the two headings this file is known to contain, not a
+        # generic "next ## heading" guess - the script text itself may
+        # legitimately contain ## headings (e.g. "## Role"), which a
+        # naive next-heading match would truncate on silently.
+        m = re.search(
+            r"## Approved script text\n\n(.+?)\n\n## Approval record",
+            text, re.DOTALL,
+        )
         if m and "_(none yet" not in m.group(1):
             script_text = m.group(1).strip()
         else:
