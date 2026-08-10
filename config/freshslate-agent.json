@@ -3,7 +3,13 @@
   "name": "Acquisitions Analyst",
   "workspace": "/Users/mac/.openclaw/agents/freshslate",
   "agentDir": "/Users/mac/.openclaw/agents/freshslate/agent",
-  "model": "anthropic/claude-sonnet-5",
+  "model": {
+    "primary": "anthropic/claude-sonnet-5",
+    "fallbacks": [
+      "openai/gpt-5.5-pro",
+      "anthropic/claude-haiku-4-5-20251001"
+    ]
+  },
   "tools": {
     "profile": "full",
     "deny": [
