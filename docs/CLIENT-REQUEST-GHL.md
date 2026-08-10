@@ -1,208 +1,235 @@
-# What I Need From You — GHL, Voice Agent, and Underwriting
+# What I Need From You
 
 **To:** Dr. Marigny
 **From:** Shayan
 **Date:** 2026-08-10
-**Re:** Information required to wire the voice agent to GoHighLevel
 
 ---
 
-## Why I'm asking
+Here's where things stand and what I need from you to keep moving.
 
-The voice agent needs to log call outcomes somewhere. You've told me that's GoHighLevel.
-Before I can wire that up, I need the specifics below — I can't guess at field names or
-pipeline stages, because a wrong guess writes bad data into your live CRM.
-
-Everything below is grouped by urgency. **Section 1 blocks the voice agent today.**
-Sections 2–4 block other work already in progress.
+I've split it into two parts: **things only you can answer** (quick), and **things I need you to
+send me** (a bit more work). Nothing here needs technical knowledge — if a question doesn't make
+sense, just tell me and I'll rephrase it.
 
 ---
 
-## ⚠️ Two things to decide before anything is wired
+# PART 1 — Questions only you can answer
 
-### A. Realtors or sellers?
+## Question 1: Who is the phone agent calling?
 
-You told me the voice agent calls **realtors, not individual homeowners**. Your own Prompt 4.3
-in the build playbook is written for calling **property owners**. These are different systems:
+You told me earlier: **realtors, not homeowners.**
 
-| | Realtors (B2B) | Distressed homeowners |
-|---|---|---|
-| DNC registry | Generally not applicable | **Applies** |
-| TCPA exposure | Lower | **High** |
-| Consent needed | Business contact | Prior express consent for automated calls |
-| Pipeline | Agent/broker outreach | Seller acquisition |
+But the playbook you sent has the phone agent calling **property owners** — the people in tax
+trouble.
 
-**These need separate GHL pipelines and separate tags.** If they share one pipeline, a realtor
-list and a distressed-seller list will eventually get called by the wrong workflow. Please
-confirm which one we are building first.
+**These have to be kept completely separate**, because the rules are different:
 
-### B. Is A2P/DNC cleared?
+- **Calling realtors** — this is business-to-business. Normal rules.
+- **Calling homeowners in distress** — the Do Not Call list applies. Fines run about
+  **$500 to $1,500 per phone call**, and one bad list can be thousands of calls.
 
-Your build playbook says plainly:
+**What I need:** just tell me which one we're building first. Realtors or homeowners.
+
+If it's both eventually, that's fine — but they need to be built as two separate systems so a
+homeowner never accidentally gets called by the realtor system.
+
+---
+
+## Question 2: Are you legally cleared to make these calls yet?
+
+Your own playbook says:
 
 > *"Test target for today: your own phone only. A2P and DNC aren't cleared. Three consenting
-> friends maximum, recorded with permission."*
+> friends maximum."*
 
-If that's still true, the webhook can be built but **must not be pointed at a real call
-campaign**. Please confirm the current status:
+Plain English: **as of when you wrote that, you were not cleared to call real people yet.**
 
-- [ ] A2P 10DLC brand + campaign registered and approved?
-- [ ] DNC scrubbing process in place, and who runs it?
-- [ ] Call recording consent language approved by counsel? (Louisiana is one-party consent, but
-      your recording disclosure still needs review)
+**What I need:** is that still true, or has it been sorted?
 
----
+Three things have to be in place before the first real call:
 
-## 1. GoHighLevel — needed to wire the voice agent
+1. **Phone registration** — carriers require registration before automated calls go out.
+   Sometimes your phone provider handles this. Do you know if it's done?
+2. **Do Not Call list checking** — someone has to check every number against the national Do Not
+   Call list before dialing. Is anyone doing this?
+3. **Recording permission** — if calls are recorded, the greeting has to say so. Has a lawyer
+   approved that wording?
 
-### 1.1 Access
-
-- **Location ID** (GHL sub-account ID — found in Settings → Business Profile)
-- **API key or Private Integration token** — GHL v2 API preferred
-- **Agency or sub-account?** Which level am I integrating at?
-
-> **Do not email these.** Per RAE's own instruction: *"Please do not send passwords, API keys,
-> account credentials... by email."* Use a password manager share, or put them directly into the
-> server environment and tell me the variable names.
-
-### 1.2 Pipeline structure
-
-For the pipeline the voice agent writes to:
-
-- **Pipeline name and ID**
-- **Every stage name, in order**
-- **Which stage does a new call outcome land in?**
-- **Which stage means "book a callback with a human"?**
-
-### 1.3 Custom fields
-
-I need the exact **field key** (not the display label) for anything the agent should write:
-
-| What the agent knows | GHL field key | Type |
-|---|---|---|
-| Call outcome (answered / voicemail / no answer / opted out) | ? | ? |
-| Call disposition / interest level | ? | ? |
-| Callback requested date-time | ? | ? |
-| Recording URL | ? | ? |
-| Call transcript or summary | ? | ? |
-| Parish | ? | ? |
-| Signal type (tax delinquency / code violation / foreclosure) | ? | ? |
-| Parcel ID | ? | ? |
-| Source dataset | ? | ? |
-
-**Easiest way to give me this:** GHL → Settings → Custom Fields → screenshot the list. Or export
-one existing contact as JSON and send it with personal details redacted.
-
-### 1.4 Tags
-
-Your playbook calls for a tag taxonomy covering parish, signal type, buyer criteria, deal stage.
-**Does it exist yet?** If yes, send the list. If no, I'll propose one and you approve it.
-
-### 1.5 Opt-out handling
-
-**This is the one I most need answered.** When someone says "stop calling me":
-
-- Which GHL tag or field records it?
-- Does it trigger a workflow that suppresses all future contact?
-- Who maintains the suppression list?
-
-An opt-out that logs but doesn't suppress is a TCPA violation waiting to happen. If this doesn't
-exist yet, it must be built **before** the first real call.
+If the answer to any of these is "I don't know," that's a completely fine answer — just say so
+and we'll find out together. **I'd rather ask now than after the first fine.**
 
 ---
 
-## 2. Underwriting cost figures — still the top blocker
+## Question 3: Who is your lawyer?
 
-The `underwrite` skill is built and working, but every number in it is a **placeholder I
-invented**. Every output currently carries a warning saying so.
+There's a new Louisiana law — **Act 807** — that started **August 1st**. It changes how
+wholesaling contracts have to be written. Fines up to **$5,000 each time**, and a contract that
+misses a required piece **can be cancelled by the seller** any time before closing.
 
-I need your real Gulf South figures:
+Here's my problem: **I have two different answers about one of the rules and I can't tell which
+is right.**
 
-**Per-unit costs:** roof (per square), siding (per sf), interior paint, flooring by type, full
-kitchen, full bath, electrical rewire, panel replacement, HVAC, water heater, pier leveling,
-sheetrock, plumbing repipe, mold remediation, debris haul.
+The law says a seller can change their mind and cancel after signing. But:
 
-**Deal parameters:** contingency %, target assignment fee, holding cost per month, closing costs.
+- One source says they get **5 days**
+- Another says **14 days**
 
-**MAO formula:** currently `(ARV × 0.70) − repairs − fee`. Is 0.70 right? Does it change by
-parish, price band, or property type?
+I tried to look up the actual law text online and the Louisiana government website wouldn't
+load. **I'm not willing to guess on this** — if we put the wrong number in your contracts, every
+contract you sign could be cancelled.
 
-**Any format is fine** — spreadsheet, photo of a handwritten list, or an old scope of work.
+**What I need:** the name of your Louisiana real estate attorney, and when they can look at this.
 
-Module 13 says explicitly: *"Do NOT use national averages."* Until your numbers replace mine,
-the skill cannot produce a usable offer.
+It should take them about 20 minutes. They just need to read the actual law and tell me the
+right number.
 
 ---
 
-## 3. Louisiana counsel — Act 807 blocker
+# PART 2 — Things I need you to send me
 
-Act 807 (La. R.S. 37:1448.5) took effect **August 1, 2026**. Penalties up to **$5,000 per
-violation**, and a contract missing a required element is **voidable at the seller's discretion
-until title transfers**.
+## 1. Your repair cost numbers ← **the biggest one**
 
-**I found a conflict I cannot resolve:**
+I built the tool that estimates repair costs and calculates your offer price. It works. **But
+right now it's using made-up numbers that I invented**, because I don't know what things
+actually cost you.
 
-| Source | Seller cancellation period |
+Every estimate it produces currently has a warning stamped on it saying "these are fake numbers,
+don't use this to make a real offer."
+
+**What I need:** what you actually pay for things. For example:
+
+- A roof — what do you pay per square?
+- A full kitchen — what does that run you?
+- A full bathroom gut and rebuild?
+- HVAC unit?
+- Water heater?
+- Rewiring a house?
+- Leveling piers?
+- Flooring, per square foot?
+- Paint, per square foot?
+
+Also:
+
+- **What percentage do you use for your offer formula?** Right now I have it set to 70% of the
+  after-repair value, minus repairs, minus your fee. Is 70% right? Does it change by parish or
+  by price range?
+- **What's your typical assignment fee?** I have $12,500 as a placeholder.
+- **How much do you add for surprises?** I have 15%.
+
+**Any format works.** A spreadsheet, a photo of a handwritten list, an old estimate you did, or
+just typing them in an email. Whatever's easiest.
+
+**This is the single most valuable thing you can send me.** The moment I have your numbers, the
+tool produces real offers instead of warnings.
+
+---
+
+## 2. GoHighLevel access — so the phone agent can save call results
+
+The phone agent needs somewhere to write down what happened on each call. You said that's
+GoHighLevel.
+
+I need four things. **All of them you can get by clicking around in GoHighLevel** — no technical
+skill needed.
+
+### a) Your account ID and a password for the system
+
+In GoHighLevel: **Settings → Business Profile**. There's an ID number there — send me that.
+
+Then: **Settings → Integrations** (or "API Keys"). You'll create a key there. It's like a
+password that lets my system write into your CRM.
+
+> ⚠️ **Please don't email me the key.** Anyone who gets it can read your whole CRM. Send it
+> through a password manager, or text it separately from everything else, or just tell me and
+> I'll walk you through putting it in directly.
+
+### b) Your pipeline stages
+
+In GoHighLevel, go to **Opportunities**. You'll see columns across the top — things like "New
+Lead," "Contacted," "Appointment Set."
+
+**Just screenshot that screen and send it.** I need to know the exact names and their order.
+
+Also tell me: **when a call finishes, which column should the person move into?**
+
+### c) Your custom fields
+
+Go to **Settings → Custom Fields**. **Screenshot the whole list.**
+
+I need to know exactly what boxes exist to store information, because the names have to match
+exactly. If I guess "phone_result" and yours is called "call_outcome," nothing saves.
+
+If the list is empty or missing things, tell me — I'll send you a list of what to create.
+
+### d) What happens when someone says "stop calling me" ← **most important**
+
+This one matters more than the rest.
+
+When someone tells the agent to stop calling:
+
+- Where does that get recorded in GoHighLevel?
+- **Does anything stop them from being called again?**
+
+If someone says stop and gets called again anyway, that's the expensive kind of mistake. If this
+isn't set up yet, tell me — **it needs to exist before the first real call**, and I'll help set
+it up.
+
+---
+
+## 3. Other documents (whenever you have them — not urgent)
+
+| What | Why I need it |
 |---|---|
-| RAE's email | **5** calendar days |
-| Summary of the enrolled bill | **14** calendar days |
-
-I could not reach `legis.la.gov` to confirm which is correct. **A Louisiana attorney needs to
-pull the enrolled text and resolve this**, along with the exact prescribed notice wording,
-deposit minimum, and escrow requirements.
-
-The compliance gate is currently **closed** — it refuses to check any contract until this is
-resolved. That is deliberate. RAE's own instruction was that these be *"counsel-owned, versioned
-transaction gates — not merely warnings in an agent prompt."*
-
-**Who is your attorney, and when can they review?**
+| Your contract templates — purchase agreement, assignment, as-is addendum | The contract checker needs to check against *your* forms, not generic ones |
+| One Succession filing — **cross out the names first** | I only need to see how the document is laid out, not who's in it |
+| 2–3 old text messages or postcards you've sent | So the compliance checker can be tested on real material |
+| How you organize your deal files | So the reminder system knows where to look |
+| Confirm: houses and 2-4 units, $120k–$400k after repair, $10–15k fee — still right? | Making sure I have your buy box correct |
 
 ---
 
-## 4. Documents I still need
+# Where things stand right now
 
-| # | Item | For |
-|---|---|---|
-| 4.1 | LREC-compliant contract templates — PSA, assignment, redhibition waiver, As-Is addendum | `contract-audit` audits against *your* forms, not a generic checklist |
-| 4.2 | One Succession filing, **names redacted** | `succession-mapper` — I need the document structure, not the people |
-| 4.3 | 2–3 past marketing pieces (SMS, postcard, ad copy) | `compliance-gate` screens real material |
-| 4.4 | Confirm buy box: SFR + 2-4 unit, ARV $120k–400k, assignment fee $10–15k | `USER.md` |
-| 4.5 | How you organize a deal folder today | `closing-watch`, `deal-desk-brief` |
+**Working today:**
 
----
+- **Finding distressed properties** — pulling live data from the official City of New Orleans
+  and Baton Rouge government databases right now. Real properties, updated daily.
+- **Repair estimates and offer calculations** — working, waiting on your real numbers
+- **Contract checking** — built, waiting on your lawyer
+- **Security testing** — 10 out of 10 safety checks passing
 
-## 5. Where the build stands
+**Two things you should know about:**
 
-**Working now:**
+### 1. The Orleans Assessor website blocks us — and Module 13 tells students to use it
 
-- Parish data extraction — **live** against official Orleans (`data.nola.gov`) and East Baton
-  Rouge (`data.brla.gov`) open-data APIs. Verified against current records.
-- Underwriting calculator — three-scenario MAO, per-line confidence, flags what photos don't show
-- Act 807 compliance gate — built, correctly refusing to operate until counsel signs off
-- 7 skills, operating files, 14-point validation gate (10/10 automated tests passing)
+Your Module 13 teaches students to pull data from `nolaassessor.com`. **That site blocks
+automated access completely.** It also has a notice saying automated collection isn't allowed.
 
-**Two findings you should know about:**
+**If a student tries this during the course, it will fail in front of everyone.** I'd fix that
+section before you teach it.
 
-1. **The Orleans Assessor site cannot be scraped.** It returns HTTP 403 site-wide behind
-   Cloudflare, and its robots.txt expressly reserves rights against automated collection.
-   **Module 13 teaches scraping it — that section needs correcting before you teach it.**
-   The official open-data APIs are better anyway: free, sanctioned, faster, and they don't break
-   when a page layout changes.
+**The good news:** I found a better way. The City of New Orleans and Baton Rouge both publish
+official government databases that are free, allowed, and faster. I'm already using them — the
+most recent record I pulled was filed the day before I checked. And unlike scraping a website,
+this doesn't break when they redesign a page.
 
-2. **Jefferson Parish has no open-data API.** It needs separate work — roughly 1–2 weeks. I'd
-   recommend not promising it until that's scoped.
+### 2. Jefferson Parish doesn't have one of these databases
 
-**Cost to run today:** parish data $0, RentCast free tier $0 (50 lookups/month), LLM roughly
-$90–150/month per operator.
+Orleans and Baton Rouge do. Jefferson doesn't. Getting Jefferson working is a separate job,
+roughly 1–2 weeks. **I'd suggest not promising Jefferson until we've scoped it.**
+
+**What it costs to run right now:** the property data is free. The AI costs roughly $90–150 a
+month.
 
 ---
 
-## 6. Fastest path
+# If you only do three things this week
 
-If you can only do three things this week:
+1. **Send me your repair cost numbers** — unblocks the biggest piece
+2. **Tell me your lawyer's name** — unblocks the contract piece
+3. **Answer Question 1 and 2 above** — realtors or homeowners, and whether you're cleared to call
 
-1. **Send the cost figures** — unblocks underwriting entirely
-2. **Name your attorney** — unblocks the Act 807 gate
-3. **Answer the two questions at the top** — realtors vs. sellers, and A2P/DNC status
+Everything else can wait.
 
-Everything else can follow.
+Anything here that doesn't make sense, just ask. Happy to jump on a call and walk through it.
