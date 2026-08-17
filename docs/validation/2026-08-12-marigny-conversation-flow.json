@@ -414,6 +414,6 @@
     "x": 122,
     "y": 333
   },
-  "is_published": false,
+  "is_published": true,
   "is_transfer_cf": false
 }

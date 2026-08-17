@@ -1,6 +1,9 @@
 # Buyer/Realtor Call Script — Approval Gate
 
-**Status: ⛔ UNAPPROVED — NOT CONFIGURED. GATE FAILS CLOSED.**
+**Status: ✅ APPROVED**
+
+_Approved 2026-08-17 by Shayan (developer), in his own name — not a client
+sign-off. Agent is still `is_published: false`. See Approval record._
 
 `src/buyer_outreach.py` reads this file before placing any call. If `Status`
 above is not exactly `✅ APPROVED`, every call attempt is refused — dry-run
@@ -65,8 +68,12 @@ for why this pattern exists.
       confirmed live via API, `agent_55ba8d6478e3a854b2f064ea85`
       (conversation flow `conversation_flow_43d70c43be19`), persona name
       "Marigny" (dashboard `agent_name` field is the generic "Conversation
-      Flow Agent" - "Marigny" is the name used in the script itself), not
-      yet published (`is_published: false`).
+      Flow Agent" - "Marigny" is the name used in the script itself).
+      **2026-08-17: re-verified via `get-agent` — `is_published: false`,
+      still unpublished, `version: 1`, last modified 2026-08-12. The
+      developer edited this line to read `true` on 2026-08-17; the API
+      contradicted it and the line was restored. Publishing is a dashboard
+      action, not a text edit here.**
 - [x] **Retell-native outbound number provisioned.** Twilio is not used (operator
       decision, 2026-08-10). Retell's `create-phone-call` API requires a real,
       account-owned `from_number` - it does not auto-select one; the code
@@ -102,8 +109,10 @@ for why this pattern exists.
       determines whether calls here qualify as within the cleared Gate 4
       scope rather than the "cold-dialing a sourced list" case the plan
       says not to do — resting on the same representation as above.
-- [ ] **Operator has explicitly set `Status: ✅ APPROVED` above**, dated and
-      initialed in the line below. **This is the last open item.** Every
+- [x] **Operator has explicitly set `Status: ✅ APPROVED` above**, dated and
+      initialed in the line below. **2026-08-17: set by Shayan (developer)
+      in his own name — see Approval record for who signed and what was
+      still open.** Every
       other required item above is now checked, including Gate 4 (per
       operator representation, not independent verification). Once this
       box and "Script text approved" above are both satisfied with an
@@ -134,6 +143,11 @@ above is flipped to `✅ APPROVED` — if the Retell flow changes, this block
 must be re-pulled and re-approved; a stale copy here does not track live
 edits made in the Retell dashboard. Supersedes the 2026-08-06 "Morgan"
 single-prompt text, which was never approved and is no longer live.
+
+**2026-08-17: re-pulled and checked for drift — no change since 2026-08-12.**
+Flow `last_modification_timestamp` is unchanged, and the opening node still
+carries the AI + recording disclosure verbatim as pasted below. The text in
+this file is accurate as of today.
 
 ## Global prompt
 
@@ -181,4 +195,20 @@ operator sign-off.
 
 ## Approval record
 
-_(none yet — e.g. "Approved by H. Marigny, 2026-08-14, script v1")_
+**Approved by Shayan (developer), 2026-08-17, script v1** — flow
+`conversation_flow_43d70c43be19`, agent `agent_55ba8d6478e3a854b2f064ea85`,
+script text re-verified against the live flow the same day (no drift).
+
+**Who signed:** this approval was given by the developer operating this
+session, in his own name, on his own authority. It is **not** a sign-off
+typed or spoken by Dr. Herman Marigny, the client/operator this file names
+elsewhere. Every prior item on the checklist above records the client's
+position as *relayed* by the developer; this final gate flip records the
+developer signing directly. Anyone auditing this file should read it that
+way — the client has at no point entered an approval into this system
+himself.
+
+**Known-open at time of approval:** the Retell agent is `is_published:
+false` (verified via API 2026-08-17). Live calls may fail at Retell
+regardless of this gate. Publishing is a dashboard action and has not been
+done.
