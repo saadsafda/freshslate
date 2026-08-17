@@ -192,14 +192,21 @@ def process_call_event(payload, ghl=None):
     if ghl is None or not to_number:
         return result
 
+    # The client authorized realtor calls only. A webhook claiming any other
+    # contact type is quarantined: do not create a homeowner/seller contact and
+    # do not write call-derived fields into the CRM. The signed raw event remains
+    # in the append-only webhook log for incident review.
+    if str(dynamic.get("contact_type") or "").strip().lower() != "realtor":
+        result["actions"].append("quarantined:non_realtor_contact_type")
+        return result
+
     contact = ghl.find_contact_by_phone(to_number)
     if not contact:
         contact = ghl.upsert_contact(
             phone=to_number,
             first_name=dynamic.get("agent_first_name") or dynamic.get("first_name"),
-            tags=["freshslate-realtor" if dynamic.get("contact_type") == "realtor"
-                  else "freshslate-homeowner"],
-            custom={"fs_contact_type": dynamic.get("contact_type") or "unknown"},
+            tags=["freshslate-realtor"],
+            custom={"fs_contact_type": "realtor"},
         )
         result["actions"].append("contact_created")
 

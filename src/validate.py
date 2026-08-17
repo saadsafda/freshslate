@@ -112,6 +112,8 @@ def t10_prohibited_source_blocked():
     # `domain ==` check would let `anything.zillow.com` through.
     must_block = (
         "nolaassessor.com", "www.nolaassessor.com",
+        "civicsource.com", "www.civicsource.com",
+        "zillow.com", "www.zillow.com", "sub.zillow.com",
         "redfin.com", "www.redfin.com",
         "realtor.com", "www.realtor.com",
         "trulia.com", "www.trulia.com",
@@ -120,11 +122,21 @@ def t10_prohibited_source_blocked():
     # not a passing gate.
     must_allow = (
         "data.nola.gov", "data.brla.gov",
-        "www.civicsource.com", "www.jpclerkofcourt.us", "www.jpassessor.com",
-        "zillow.com", "www.zillow.com", "sub.zillow.com",
+        "www.jpclerkofcourt.us", "www.jpassessor.com",
     )
 
     blocked, leaked = [], []
+
+    # A legacy Zillow utility remains in the repository for its pure parsing
+    # helpers. Confirm that its network client cannot bypass the central source
+    # policy even when called directly.
+    try:
+        from zillow_scraper import ZillowScraper
+        ZillowScraper()
+        leaked.append("ZillowScraper direct client")
+    except PermissionError:
+        blocked.append("ZillowScraper direct client")
+
     for host in must_block:
         try:
             assert_host_permitted(cfg, host)
@@ -370,21 +382,23 @@ def t_extra_dialer_gates():
     """
     The dial gate chain must fail closed.
 
-    Checked without network: campaign/type separation, suppression list, DNC
-    assertion for homeowner campaigns, and TCPA window.
+    Checked without network: realtor-only campaign authorization, mandatory
+    contact typing, suppression list, and TCPA window.
     """
     try:
         import dialer
         from dialer import Dialer, GateFailure, normalize
+        from webhook_server import process_call_event
     except ImportError as e:
         return "FAIL", f"dialer not importable: {e}"
 
     problems = []
 
-    # Homeowner campaigns must refuse to start without an asserted DNC scrub.
+    # Homeowner campaigns are outside the client's authorized scope, regardless
+    # of DNC status or any other flag.
     try:
-        Dialer("homeowner", live=False, dnc_verified=False, ghl=None).preflight()
-        problems.append("homeowner campaign started WITHOUT --dnc-verified")
+        Dialer("homeowner", live=False, ghl=None).preflight()
+        problems.append("homeowner campaign started despite realtor-only scope")
     except GateFailure:
         pass
 
@@ -397,6 +411,10 @@ def t_extra_dialer_gates():
         ok, _ = d.check_contact("+15045551234", contact_type="homeowner")
         if ok:
             problems.append("homeowner record accepted by realtor campaign")
+
+        ok, _ = d.check_contact("+15045551234", contact_type=None)
+        if ok:
+            problems.append("untyped record accepted by realtor campaign")
 
         ok, _ = d.check_contact("+15045559999")
         if ok:
@@ -421,10 +439,30 @@ def t_extra_dialer_gates():
     if normalize("5045551234") != "+15045551234":
         problems.append("phone normalization broken")
 
+    class _NoCRMCalls:
+        """Any method call means a non-realtor webhook escaped quarantine."""
+        def __getattr__(self, name):
+            raise AssertionError(f"CRM method unexpectedly called: {name}")
+
+    non_realtor_event = {
+        "event": "call_ended",
+        "call": {
+            "call_id": "scope-probe",
+            "to_number": "+15045551234",
+            "retell_llm_dynamic_variables": {"contact_type": "homeowner"},
+        },
+    }
+    try:
+        quarantine = process_call_event(non_realtor_event, ghl=_NoCRMCalls())
+        if "quarantined:non_realtor_contact_type" not in quarantine.get("actions", []):
+            problems.append("non-realtor webhook was not explicitly quarantined")
+    except AssertionError as e:
+        problems.append(str(e))
+
     if problems:
         return "FAIL", "; ".join(problems)
-    return "PASS", ("cross-campaign, suppression, DNC-assertion, TCPA-window and "
-                    "malformed-number gates all fail closed")
+    return "PASS", ("realtor-only scope, mandatory contact type, suppression, "
+                    "TCPA-window and malformed-number gates all fail closed")
 
 
 AUTOMATED = [

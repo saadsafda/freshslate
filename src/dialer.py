@@ -6,15 +6,15 @@ Every dial passes a gate chain before the API is touched. The gates are here, in
 code, and not in the agent prompt, because a prompt is a request and a gate is a
 guarantee. TCPA/DNC exposure is per-call and compounds fast.
 
+Authorized scope: licensed real estate agents only. Homeowner, seller, heir,
+buyer, and unknown contacts are never dialed by this program.
+
 Gate chain -- ALL must pass:
 
-    1. Campaign type matches contact type. A homeowner can never be dialed by a
-       realtor campaign, and vice versa. This is the separation the client asked
-       for and it is enforced on the record, not on the list filename.
+    1. Campaign and contact type both equal ``realtor``. Blank is a failure.
     2. Contact is not opted out (GHL dnd flag, opt-out tags, channel dnd).
     3. Number is not on the internal suppression list.
-    4. Homeowner campaigns require --dnc-verified, asserting a national DNC
-       scrub has been run. Absent that flag, homeowner dialing refuses to start.
+    4. A live target exists in GHL and its fs_contact_type is ``realtor``.
     5. Calling window: 8am-9pm in the contact's local time (America/Chicago),
        per TCPA. Checked per call, not per batch.
     6. Per-run call cap, so a bad list cannot become a thousand violations.
@@ -108,10 +108,9 @@ def in_call_window(now=None):
 
 
 class Dialer:
-    def __init__(self, campaign, live=False, dnc_verified=False, ghl=None):
+    def __init__(self, campaign, live=False, ghl=None):
         self.campaign = campaign
         self.live = live
-        self.dnc_verified = dnc_verified
         self.ghl = ghl
         self.suppression = load_suppression()
         self.api_key = os.environ.get("RETELL_API_KEY")
@@ -125,13 +124,10 @@ class Dialer:
         """Run-level checks. Raises before any number is considered."""
         problems = []
 
-        if self.campaign not in ("realtor", "homeowner"):
-            problems.append(f"unknown campaign type: {self.campaign}")
-
-        if self.campaign == "homeowner" and not self.dnc_verified:
+        if self.campaign != "realtor":
             problems.append(
-                "homeowner campaign requires --dnc-verified. Federal DNC scrubbing "
-                "must be run against this list first. Penalties are $500-$1,500 per call."
+                f"campaign {self.campaign!r} is not authorized. Client scope permits "
+                "licensed-realtor calls only."
             )
 
         if self.live:
@@ -140,6 +136,11 @@ class Dialer:
                               ("RETELL_FROM_NUMBER", self.from_number)]:
                 if not val:
                     problems.append(f"--live requires {name}")
+            if not self.ghl or not self.ghl.available:
+                problems.append(
+                    "--live requires GHL. Every live target must resolve to a callable "
+                    "contact with fs_contact_type=realtor."
+                )
             if not in_call_window():
                 problems.append(
                     f"outside TCPA calling window. Central time is "
@@ -161,9 +162,11 @@ class Dialer:
         if not in_call_window():
             return False, f"outside calling window ({central_now().strftime('%H:%M')} Central)"
 
-        if contact_type and contact_type != self.campaign:
-            return False, (f"contact_type={contact_type!r} does not match "
-                           f"campaign={self.campaign!r} — refusing cross-campaign dial")
+        if str(contact_type or "").strip().lower() != "realtor":
+            return False, (
+                f"contact_type={contact_type!r}; licensed-realtor type is required — "
+                "blank, homeowner, seller, heir, and buyer records are blocked"
+            )
 
         if self.ghl and self.ghl.available:
             try:
@@ -171,17 +174,28 @@ class Dialer:
             except Exception as e:
                 return False, f"CRM check failed, failing closed: {type(e).__name__}"
 
-            if contact:
-                ok, reason = self.ghl.is_callable(contact)
-                if not ok:
-                    return False, f"CRM: {reason}"
+            if not contact:
+                return False, "CRM: target not found — live calls require a verified realtor record"
 
-                crm_type = None
-                for f in contact.get("customFields", []) or []:
-                    if f.get("id") and str(f.get("value", "")).lower() in ("realtor", "homeowner"):
-                        crm_type = str(f["value"]).lower()
-                if crm_type and crm_type != self.campaign:
-                    return False, (f"CRM contact_type={crm_type!r} != campaign={self.campaign!r}")
+            ok, reason = self.ghl.is_callable(contact)
+            if not ok:
+                return False, f"CRM: {reason}"
+
+            try:
+                fmap = self.ghl.field_map()
+            except Exception as e:
+                return False, f"CRM field lookup failed, failing closed: {type(e).__name__}"
+            type_id = fmap.get("contact.fs_contact_type") or fmap.get("fs_contact_type")
+            if not type_id:
+                return False, "CRM: fs_contact_type field is unavailable"
+
+            crm_type = None
+            for f in contact.get("customFields", []) or []:
+                if f.get("id") == type_id:
+                    crm_type = str(f.get("value", "")).strip().lower()
+                    break
+            if crm_type != "realtor":
+                return False, f"CRM contact_type={crm_type!r}; licensed realtor required"
 
         return True, "ok"
 
@@ -269,21 +283,26 @@ def load_csv(path):
 
 def main():
     ap = argparse.ArgumentParser(description="Fresh Slate outbound dialer")
-    ap.add_argument("--campaign", required=True, choices=["realtor", "homeowner"])
+    ap.add_argument("--campaign", required=True, choices=["realtor"])
     ap.add_argument("--numbers", nargs="*", default=[])
     ap.add_argument("--from-csv")
     ap.add_argument("--max", type=int, default=25, help="hard cap on calls this run")
     ap.add_argument("--live", action="store_true", help="actually place calls")
     ap.add_argument("--dry-run", action="store_true", default=True)
-    ap.add_argument("--dnc-verified", action="store_true",
-                    help="assert federal DNC scrubbing has been run on this list")
     ap.add_argument("--delay", type=float, default=2.0, help="seconds between calls")
     args = ap.parse_args()
 
     live = args.live
     load("retell", "ghl")
 
-    targets = [{"phone": p, "contact_type": None, "variables": {}} for p in args.numbers]
+    if live and args.numbers:
+        sys.exit(
+            "--numbers is dry-run only. Live targets must come from a CSV carrying "
+            "contact_type=realtor and must also exist as realtor records in GHL."
+        )
+
+    targets = [{"phone": p, "contact_type": "realtor", "variables": {}}
+               for p in args.numbers]
     if args.from_csv:
         targets += load_csv(args.from_csv)
 
@@ -295,8 +314,7 @@ def main():
         targets = targets[: args.max]
 
     ghl = GHL()
-    d = Dialer(args.campaign, live=live, dnc_verified=args.dnc_verified,
-               ghl=ghl if ghl.available else None)
+    d = Dialer(args.campaign, live=live, ghl=ghl if ghl.available else None)
 
     print(f"Campaign : {args.campaign}")
     print(f"Mode     : {'LIVE — REAL CALLS' if live else 'DRY RUN'}")

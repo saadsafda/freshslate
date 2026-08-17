@@ -120,10 +120,10 @@ agent prompt, because TCPA exposure is per-call.
 
 | Gate | Refuses when |
 |---|---|
-| Campaign/type match | contact is `homeowner` and campaign is `realtor` (or vice versa) |
+| Realtor-only scope | campaign and contact type must both be `realtor`; blank is blocked |
 | CRM opt-out | GHL `dnd` flag, opt-out tag, or channel-level DND |
 | Suppression list | number in `deals/_config/suppression-list.txt` |
-| DNC assertion | homeowner campaign started without `--dnc-verified` |
+| CRM identity | live target must exist in GHL with `fs_contact_type=realtor` |
 | TCPA window | outside 8am–9pm America/Chicago |
 | Run cap | more than `--max` calls in one run |
 
@@ -139,7 +139,7 @@ Nothing in this system un-suppresses a number programmatically.
       estimate carries a warning banner until Dr. Marigny supplies real numbers
 - [ ] **Act 807 cancellation window** — sources conflict, 5 vs 14 days. Gate fails closed
       pending Louisiana counsel. Do not guess.
-- [ ] **A2P / DNC clearance** — required before any homeowner call
+- [ ] **Calling/recording clearance** — required before any live realtor call
 - [ ] Jefferson Parish recon — no API found; needs form/XHR analysis, scope separately
 - [ ] Socrata app token (free) before production
 - [ ] Public HTTPS host for the webhook receiver (Retell must reach it)
@@ -150,9 +150,9 @@ Nothing in this system un-suppresses a number programmatically.
 
 ## Scope note
 
-This produces a **research list** and, for realtor campaigns only, places B2B calls
-about publicly advertised listings. It never contacts a homeowner without a
-separately sourced, DNC-scrubbed number and an explicit `--dnc-verified` campaign.
+This produces a **research list** and places B2B calls only to verified realtor
+records about publicly advertised listings. The dialer has no homeowner campaign;
+homeowner, seller, heir, buyer, unknown, and untyped records fail closed.
 
 Offers, contracts, and funds movement are human actions outside this system — by
 design, per the Fresh Slate Deployment Standard.

@@ -226,10 +226,11 @@ instead (§7.1).
 
 ### Jefferson is *not* wired in yet
 
-The recon is done; the extraction is not. Jefferson needs form/XHR analysis per
-source rather than a documented API, which is the 1–2 week job scoped earlier.
-`config/sources.json` still lists Jefferson as `enabled: false`, and the sweep
-reports it as not configured rather than silently returning nothing.
+The recon is done; no permitted bulk API was found. The recommended acquisition
+route is now a manual public-records request, documented in
+`docs/JEFFERSON-RECORDS-REQUEST.md`, followed by deterministic ingestion of the
+returned CSV. `config/sources.json` lists Jefferson as `enabled: false`, and the
+sweep reports it as not configured rather than silently returning nothing.
 
 ### Zillow — asked for, declined (2026-08-17)
 
@@ -270,8 +271,7 @@ structured fields, which is strictly more than scraping the page would yield.
 ## 8. Open items
 
 - [ ] Register Socrata app token (free) before production
-- [ ] Jefferson extraction build — recon done (§7), form/XHR analysis remains, 1–2 weeks
-- [ ] CivicSource structure analysis — likely the highest-value Jefferson source
+- [ ] Submit the Jefferson public-records request and build ingestion against the returned format
 - [ ] Recheck `jpso.com` (unreachable at recon time)
 - [ ] GSREIN / MLS IDX license if listing data is required
 - [ ] Resolve Orleans owner-of-record from a permitted source, or accept null

@@ -23,8 +23,14 @@ beat() { [ "${NOPAUSE:-0}" = "1" ] || { printf '\n%s   [enter to continue]%s' "$
 preflight() {
   hdr "PRE-FLIGHT"
   local ok=1
-  python3 src/validate.py 2>/dev/null | grep -q "Automated: 10/10 passed" \
-    && printf '  %s✓%s validation gate 10/10\n' "$G" "$R" || { printf '  ✗ VALIDATION FAILING\n'; ok=0; }
+  local validation_output validation_summary
+  if validation_output="$(python3 src/validate.py 2>/dev/null)"; then
+    validation_summary="$(printf '%s\n' "$validation_output" | grep -Eo 'Automated: [0-9]+/[0-9]+ passed' | tail -1)"
+    printf '  %s✓%s validation gate %s\n' "$G" "$R" "${validation_summary#Automated: }"
+  else
+    printf '  ✗ VALIDATION FAILING\n'
+    ok=0
+  fi
   curl -s --max-time 8 "https://data.nola.gov/resource/u6yx-v2tw.json?\$limit=1" >/dev/null 2>&1 \
     && printf '  %s✓%s data.nola.gov reachable\n' "$G" "$R" || { printf '  ✗ NO NETWORK — use saved sweep\n'; ok=0; }
   for f in demo/scope-full.json demo/scope-streetview.json demo/contract-sample.txt; do

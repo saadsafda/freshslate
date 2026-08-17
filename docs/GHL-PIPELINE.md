@@ -43,9 +43,8 @@ A **human** has attempted contact.
 - **Required:** `fs_consent_basis`, `fs_dnc_checked_at`, `fs_dnc_status = clear`
 - **Exit:** owner reached, or attempts exhausted per policy
 
-> ⛔ Homeowner calling requires DNC scrubbing and A2P registration. The dialer
-> refuses a homeowner campaign without `--dnc-verified`. Not cleared as of
-> 2026-08-17.
+> ⛔ The automated dialer is realtor-only. Homeowner contact, if ever legally
+> authorized, is a separate future scope and is not implemented in this build.
 
 ### 4. Conversation / Qualifying
 Owner engaged. Motivation, timeline, and title questions open.

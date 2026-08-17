@@ -1,27 +1,9 @@
-"""
-Zillow search scraper — Jefferson Parish, LA (regionId 2743)
+"""Legacy Zillow response parser — network collection is disabled.
 
-Targets Zillow's internal JSON endpoint rather than parsing HTML, which is
-both more reliable and far lighter on their servers than rendering pages.
-
-IMPORTANT REALITIES:
-  * Zillow runs PerimeterX/HUMAN + Cloudflare. Datacenter IPs are blocked
-    on the first request. You need residential proxies.
-  * curl_cffi is used instead of `requests` because Zillow fingerprints TLS.
-    Plain `requests` has a Python-shaped TLS handshake and gets flagged even
-    with perfect headers.
-  * Any single search returns at most ~820 results (20 pages x ~41). Jefferson
-    Parish has more than that, so --tile splits the bounding box into a grid
-    and searches each cell separately.
-  * Zillow's ToS prohibits automated access. Know your risk posture.
-
-Install:
-    pip install curl_cffi pandas
-
-Usage:
-    python zillow_scraper.py --out jefferson.csv
-    python zillow_scraper.py --tile 3 --delay 8 --out jefferson.csv
-    python zillow_scraper.py --proxy http://user:pass@residential.host:8000
+The source-recon decision recorded in ``config/sources.json`` prohibits
+automated Zillow access. The parsing helpers remain available for previously
+saved, lawfully obtained test fixtures, but every network-client construction
+passes through the same hard source-policy gate as the parish sweep.
 """
 
 from __future__ import annotations
@@ -39,7 +21,7 @@ from typing import Any, Iterator
 try:
     from curl_cffi import requests as crequests
 except ImportError:
-    sys.exit("Missing dependency. Run: pip install curl_cffi pandas")
+    crequests = None
 
 
 SEARCH_URL = "https://www.zillow.com/async-create-search-page-state"
@@ -64,6 +46,13 @@ log = logging.getLogger("zillow")
 
 class Blocked(Exception):
     """Raised when Zillow serves a bot-detection response."""
+
+
+def enforce_source_policy() -> None:
+    """Fail before constructing a session or making any Zillow request."""
+    from parish_sweep import assert_host_permitted, load_config
+
+    assert_host_permitted(load_config(), "www.zillow.com")
 
 
 @dataclass
@@ -151,6 +140,10 @@ class ZillowScraper:
         max_retries: int = 3,
         impersonate: str = "chrome124",
     ):
+        enforce_source_policy()
+        if crequests is None:
+            raise RuntimeError("curl_cffi is required to construct the legacy client")
+
         self.delay = delay
         self.jitter = jitter
         self.timeout = timeout
@@ -318,6 +311,17 @@ def save(listings: list[Listing], out: Path) -> None:
 
 
 def main() -> int:
+    try:
+        enforce_source_policy()
+    except PermissionError as exc:
+        print(str(exc), file=sys.stderr)
+        print(
+            "Use an approved government API, licensed data provider, or the "
+            "Jefferson public-records request workflow instead.",
+            file=sys.stderr,
+        )
+        return 2
+
     ap = argparse.ArgumentParser(description="Scrape Zillow listings for Jefferson Parish, LA")
     ap.add_argument("--out", type=Path, default=Path("jefferson_parish.csv"))
     ap.add_argument("--proxy", help="Residential proxy, e.g. http://user:pass@host:port")
