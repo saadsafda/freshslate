@@ -41,6 +41,65 @@ FIELD_MAP = {
     "fs_retrieved_at": "retrieved_at",
 }
 
+SELLER_PIPELINE = "Fresh Slate — Seller Acquisition"
+INTAKE_STAGE = "1. Signal Identified"
+
+# Sweep records carry no phone and no email, which drives two API constraints
+# that are not obvious and were both found the hard way:
+#
+#   POST /contacts/upsert  400s without a phone or email. It cannot be used here.
+#   POST /contacts/        succeeds but silently creates a DUPLICATE every run.
+#
+# So dedup is ours to do: search on the parcel ID before writing. A nightly
+# sweep re-reports the same adjudicated parcels for months, and without this the
+# board fills with copies of the same property.
+DEDUP_TAG_PREFIX = "fs-parcel-"
+
+
+def parcel_key(record):
+    """Stable identity for a sweep record. Parcel first, then case number."""
+    return (record.get("parcel_id") or record.get("source_case_no") or "").strip()
+
+
+def find_by_parcel(g, parcel, cache=None):
+    """
+    Locate an existing contact for this parcel.
+
+    Uses a per-run tag index rather than a search call per record -- the search
+    endpoint does not reliably match on custom field values, and one API call
+    per record is slow and burns rate limit on a 500-record sweep.
+    """
+    if cache is None or not parcel:
+        return None
+    return cache.get(parcel.lower())
+
+
+def build_parcel_cache(g):
+    """
+    Map {parcel_id: contact} for everything previously imported by the sweep.
+
+    Paginates the homeowner-tagged contacts once per run and indexes them on the
+    fs_parcel_id custom field.
+    """
+    fmap = g.field_map()
+    parcel_fid = fmap.get("contact.fs_parcel_id") or fmap.get("fs_parcel_id")
+    if not parcel_fid:
+        return {}
+
+    cache, page = {}, 1
+    while page <= 20:  # ceiling: 20 x 100 = 2000 contacts
+        r = g._request("POST", "/contacts/search",
+                       body={"locationId": g.location_id, "pageLimit": 100, "page": page})
+        contacts = (r or {}).get("contacts", [])
+        if not contacts:
+            break
+        for c in contacts:
+            for f in c.get("customFields", []) or []:
+                if f.get("id") == parcel_fid and f.get("value"):
+                    cache[str(f["value"]).strip().lower()] = c
+        page += 1
+    return cache
+
 
 def build(record):
     """One sweep record -> upsert kwargs. Owner name is used only if sourced."""
@@ -84,6 +143,10 @@ def main():
     ap.add_argument("--limit", type=int, default=100)
     ap.add_argument("--apply", action="store_true", help="write to the CRM")
     ap.add_argument("--dry-run", action="store_true", default=True)
+    ap.add_argument("--opportunities", action="store_true", default=True,
+                    help="also open a deal in stage 1 (default on)")
+    ap.add_argument("--no-opportunities", dest="opportunities", action="store_false",
+                    help="import contacts only, no board cards")
     args = ap.parse_args()
 
     require("ghl")
@@ -98,7 +161,27 @@ def main():
     print("!! records tagged `freshslate-homeowner`. No phone number is created,")
     print("!! and the dialer will refuse them in any realtor campaign.\n")
 
-    written = skipped = no_address = 0
+    # Resolve the intake stage once. Missing pipeline is a hard stop, not a
+    # silent skip -- contacts without opportunities are invisible on the board.
+    pipeline = stage_id = None
+    if args.opportunities:
+        pls = {p["name"]: p for p in g.pipelines()}
+        pipeline = pls.get(SELLER_PIPELINE)
+        if not pipeline:
+            sys.exit(f"error: pipeline {SELLER_PIPELINE!r} not found. "
+                     f"Run: python3 src/ghl_pipelines.py --apply")
+        match = [s for s in pipeline["stages"] if s["name"] == INTAKE_STAGE]
+        if not match:
+            sys.exit(f"error: stage {INTAKE_STAGE!r} not found in {SELLER_PIPELINE!r}")
+        stage_id = match[0]["id"]
+        print(f"Pipeline: {SELLER_PIPELINE} -> {INTAKE_STAGE}\n")
+
+    cache = {}
+    if args.apply:
+        cache = build_parcel_cache(g)
+        print(f"Indexed {len(cache)} previously-imported parcels for dedup\n")
+
+    created = updated = opps = skipped = no_address = failed = 0
     for r in records:
         kw = build(r)
         # Real parish records do carry null addresses (sheriff-sale rows keyed only
@@ -107,28 +190,77 @@ def main():
         addr = r.get("situs_address") or f"(no address — parcel {r.get('parcel_id') or '?'})"
         if not r.get("situs_address"):
             no_address += 1
+
+        parcel = parcel_key(r)
         if not args.apply:
-            print(f"  [--] {addr[:44]:46} {r.get('signal_type','?')}")
+            dup = "  [would update]" if parcel.lower() in cache else ""
+            print(f"  [--] {addr[:42]:44} {r.get('signal_type','?'):16}{dup}")
             skipped += 1
             continue
-        try:
-            # No phone: keyed on parcel via custom field, so re-runs update rather
-            # than duplicate only when GHL can match. Without a phone or email GHL
-            # creates a new record, so guard on parcel first.
-            c = g.upsert_contact(**kw)
-            dropped = (c or {}).get("_dropped_fields")
-            note = f"  dropped: {dropped}" if dropped else ""
-            print(f"  [OK] {addr[:44]:46} id={(c or {}).get('id')}{note}")
-            written += 1
-        except Exception as e:
-            print(f"  [!!] {addr[:44]:46} {type(e).__name__}: {str(e)[:90]}")
 
-    print(f"\nwritten={written} dry_run={skipped} without_address={no_address}")
+        try:
+            existing = find_by_parcel(g, parcel, cache)
+            if existing:
+                cid = existing["id"]
+                g._request("PUT", f"/contacts/{cid}",
+                           body={"customFields": _cf_payload(g, kw["custom"])})
+                print(f"  [UP] {addr[:42]:44} id={cid}")
+                updated += 1
+                continue
+
+            body = {"locationId": g.location_id, "source": kw["source"],
+                    "tags": kw["tags"], "customFields": _cf_payload(g, kw["custom"])}
+            if kw.get("first_name"):
+                body["firstName"] = kw["first_name"]
+            if kw.get("last_name"):
+                body["lastName"] = kw["last_name"]
+
+            resp = g._request("POST", "/contacts/", body=body)
+            c = (resp or {}).get("contact", resp) or {}
+            cid = c.get("id")
+            if not cid:
+                raise RuntimeError("no contact id returned")
+            if parcel:
+                cache[parcel.lower()] = c
+            created += 1
+
+            if args.opportunities:
+                name = f"{addr} — {r.get('signal_type','signal')}"
+                o = g.create_opportunity(cid, pipeline["id"], stage_id, name[:120])
+                oid = ((o or {}).get("opportunity") or {}).get("id")
+                opps += 1 if oid else 0
+                print(f"  [OK] {addr[:42]:44} id={cid} opp={oid}")
+            else:
+                print(f"  [OK] {addr[:42]:44} id={cid}")
+
+        except Exception as e:
+            failed += 1
+            print(f"  [!!] {addr[:42]:44} {type(e).__name__}: {str(e)[:80]}")
+
+    print(f"\ncreated={created} updated={updated} opportunities={opps} "
+          f"failed={failed} dry_run={skipped} without_address={no_address}")
     if no_address:
         print(f"note: {no_address} record(s) carry no situs address — the source row "
               f"has none. Parcel/case number is retained; address is not inferred.")
     if not args.apply:
         print("Re-run with --apply to write.")
+
+
+def _cf_payload(g, custom):
+    """{fieldKey: value} -> [{id, value}], dropping unknown keys loudly."""
+    fmap = g.field_map()
+    out, dropped = [], []
+    for key, val in (custom or {}).items():
+        if val in (None, ""):
+            continue
+        fid = fmap.get(f"contact.{key}") or fmap.get(key)
+        if fid:
+            out.append({"id": fid, "value": str(val)})
+        else:
+            dropped.append(key)
+    if dropped:
+        print(f"       warning: unmapped fields dropped: {dropped}")
+    return out
 
 
 if __name__ == "__main__":
