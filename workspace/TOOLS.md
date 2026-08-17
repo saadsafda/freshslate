@@ -26,9 +26,18 @@ update independently without exposing local setup.
   unattended via cron, daily 4am America/Chicago, writing to `deals/_inbox/`
 - Underwrite: `python3 src/underwrite.py --scope <file.json> --arv <value>`
 - Act 807 gate: `python3 src/act807.py --check` (gate status) / `--audit <contract.txt>`
-- Buyer/realtor voice outreach (Retell): `python3 src/buyer_outreach.py --to <E.164> --name
-  "<name>" --context "<deal>"` — always dry-run first; `--confirm` only on explicit operator
-  instruction and only while `deals/_config/call-script.md` Status is `✅ APPROVED`
+- Realtor voice outreach (Retell): **`python3 src/dialer.py --campaign realtor
+  --numbers <E.164> [--max N]`** — dry-run is the default; `--live` places real calls, only
+  on explicit operator instruction and only while `deals/_config/call-script.md` Status is
+  `✅ APPROVED`. The dial is refused unless the target exists in GHL with
+  `fs_contact_type=realtor`; blank, homeowner, seller, heir and buyer records are blocked.
+- `src/buyer_outreach.py` is the **superseded** dialer, kept for its `--self-test` carve-out
+  and its audit-log format. Two live dial paths is a hazard — treat `dialer.py` as the
+  supported one.
+- Do-not-call: one logical list, two files, both append-only and both written together —
+  `deals/_config/dnc/internal-dnc.jsonl` (audit trail, bare 10-digit) and
+  `deals/_config/suppression-list.txt` (human-readable, E.164). Never hand-edit either to
+  *remove* a number; a suppression request is permanent.
 - Validation gate: `python3 src/validate.py`
 - Secrets: `secrets/*.env` (`retell.env`, `ghl.env`, `anthropic.env`) — `600`, owner
   `freshslate:freshslate`. Never read or print their contents; check presence/length only.
