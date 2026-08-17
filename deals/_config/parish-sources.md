@@ -55,10 +55,17 @@ requires a valuation source we do not currently have. Emit `equity_estimate: nul
 
 ## Jefferson Parish
 
-**Status: NOT CONFIGURED — recon incomplete.**
+**Status: NOT CONFIGURED — confirmed no usable source (2026-08-12).**
 
-No open-data API found. `jpassessor.com` and `jeffparish.gov` respond 200 with `robots.txt`
-present, but extraction would require form/XHR analysis per RAE Block 1.
+Jefferson Parish GIS Dept does run an official open-data portal
+(`jefferson-parish-data-transparency-jpgis.hub.arcgis.com`) — full 204-item catalog checked
+2026-08-12 via the ArcGIS sharing API. It does not publish code enforcement, blight, tax
+delinquency/adjudicated property, or foreclosure data — the catalog is infrastructure/COVID/
+facilities data only. See `docs/SOURCE-RECON.md` §4 for the full check.
+
+The only other surfaces (`JeffMap` web map app, `jpassessor.com`, a third-party assessor
+viewer) are interactive applications, not APIs — extraction would require form/XHR analysis,
+estimated at 1-2 weeks of dedicated work, and untested against those sites' terms of use.
 
 `parish-sweep` must **skip Jefferson and report it as unconfigured.** Do not improvise a
 source.

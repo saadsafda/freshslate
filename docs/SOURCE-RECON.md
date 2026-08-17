@@ -134,6 +134,31 @@ Module 13 warns about.
 
 **Recommendation:** defer Jefferson. Ship Orleans + EBR via API first.
 
+### 2026-08-12 follow-up — full catalog checked, same conclusion
+
+Found a real official portal: `jefferson-parish-data-transparency-jpgis.hub.arcgis.com`
+(Jefferson Parish GIS Dept, ArcGIS Hub). Pulled the **complete public catalog via the
+ArcGIS Online sharing API** (`arcgis.com/sharing/rest/search?q=owner:rclipper_JPGIS`) —
+**204 items**, every one a genuine hosted ArcGIS service, not scraped or inferred.
+
+Checked every title/tag/description against: code enforcement, violation, blight, condemn,
+adjudicated, delinquency, tax sale, foreclosure, sheriff sale, assessment, nuisance,
+abatement, lien. **Zero matches carrying the distress signals Module 13 needs.** The catalog
+is water/drainage infrastructure, 2021 COVID response data, parks/facilities, council
+districts, and zoning — no property-code or tax-delinquency data is published here. (Two
+generically-named hits, `Cases1007`/`casecount`, are COVID case counts, confirmed via their
+tags — not code-enforcement cases.)
+
+Two non-API surfaces exist and were **not** attempted: `JeffMap`
+(`jp-appserver.jeffparish.net/webapps/webmap`) and a third-party assessor viewer
+(`atlas.geoportalmaps.com/jefferson`) — both interactive map/form applications, not APIs.
+Extracting from either is the same form/XHR reverse-engineering job estimated above, not a
+quick win this recon uncovered. Conclusion unchanged: **Jefferson Parish is confirmed not to
+publish the needed data as open data**, rather than merely "not yet found."
+
+*Recon method: read-only queries against the public ArcGIS sharing REST API and DCAT feed —
+no scraping, no authentication bypass, no interactive-app automation attempted.*
+
 ---
 
 ## 5. Rate limiting

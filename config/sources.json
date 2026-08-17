@@ -9,6 +9,24 @@
     "www.nolaassessor.com"
   ],
 
+  "_buyer_sources_comment": [
+    "Read by src/buyer_db.py. Identifies active property investors as candidate",
+    "cash buyers (readiness plan Part 6). Orleans is absent deliberately: it",
+    "publishes no owner-bearing dataset through a permitted source, and the",
+    "Assessor is on prohibited_hosts. Jefferson has no usable open data at all.",
+    "See docs/SOURCE-RECON.md."
+  ],
+  "buyer_sources": {
+    "east_baton_rouge": {
+      "parish_name": "East Baton Rouge Parish",
+      "domain": "data.brla.gov",
+      "dataset": "myfc-nh6n",
+      "label": "EBRP Tax Roll",
+      "tax_year": "2025",
+      "where": "tax_year='{tax_year}' AND homestead_exempt_type='NO' AND assessment_type='REAL PROPERTY' AND fair_market_val > 0"
+    }
+  },
+
   "parishes": {
     "orleans": {
       "name": "Orleans Parish",

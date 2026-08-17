@@ -85,3 +85,27 @@ because the output still looks confident.
 
 Run them, then reason about what they return. Do not recompute their output by hand, and do not
 substitute your own arithmetic for theirs.
+
+## Tools
+
+Skills define how tools work. Environment-specific details live here so shared skills can update
+independently without exposing local setup — see `deal-desk-brief`, `closing-watch`,
+`contract-audit`, etc. for the skill-level procedures that call these.
+
+- Repo root: `/opt/freshslate` (VPS `srv1868077.hstgr.cloud`, Hostinger)
+- Parish sweep: `python3 src/parish_sweep.py [--since YYYY-MM-DD] [--dry-run]` — also runs
+  unattended via cron, daily 4am America/Chicago, writing to `deals/_inbox/`
+- Underwrite: `python3 src/underwrite.py --scope <file.json> --arv <value>`
+- Act 807 gate: `python3 src/act807.py --check` (gate status) / `--audit <contract.txt>`
+- Buyer/realtor voice outreach (Retell): `python3 src/buyer_outreach.py --to <E.164> --name
+  "<name>" --context "<deal>"` — always dry-run first; `--confirm` only on explicit operator
+  instruction and only while `deals/_config/call-script.md` Status is `✅ APPROVED`
+- Validation gate: `python3 src/validate.py`
+- Secrets: `secrets/*.env` (`retell.env`, `ghl.env`, `anthropic.env`) — `600`, owner
+  `freshslate:freshslate`. Never read or print their contents; check presence/length only.
+- Retell voice agent: conversation-flow agent "Marigny" — id lives in `secrets/retell.env`
+  (`RETELL_AGENT_ID`); approval status and script text tracked in
+  `deals/_config/call-script.md`, not here.
+- CRM push: Retell → GHL webhook receiver, Docker service `freshslate-webhooks`, public URL
+  `https://freshslate-webhooks.srv1868077.hstgr.cloud/webhooks/retell` (post-call) and
+  `/webhooks/retell/log-call-outcome` (in-call tool). Source: `src/webhook_server.py`.

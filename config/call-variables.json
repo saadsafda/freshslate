@@ -1,0 +1,30 @@
+{
+  "_comment": [
+    "Dynamic variables passed to the Retell 'Marigny' conversation flow.",
+    "The flow references these by name; if one is blank, that line of the",
+    "script renders empty on a live call. src/buyer_outreach.py refuses to",
+    "dial while any required value is blank, rather than placing a call that",
+    "sounds broken.",
+    "",
+    "STABLE values live here (investor, buy box, market). PER-CALL values",
+    "(street_name, parish, callback times) are CLI arguments - see",
+    "buyer_outreach.py --help.",
+    "",
+    "These are business facts only the operator knows. They are deliberately",
+    "left blank rather than guessed: a wrong ARV range makes the agent",
+    "mis-qualify a real property, and a wrong investor name is said out loud",
+    "to a stranger."
+  ],
+  "investor_name": "Sher Muhammad",
+  "_investor_name_help": "Spoken aloud in the opening line. The human the callback is with, e.g. 'James' or 'Dr. Marigny'.",
+  "parishes": "Orleans and East Baton Rouge Parishes",
+  "_parishes_help": "Where the investor is active, spoken naturally. e.g. 'Orleans and East Baton Rouge Parishes'",
+  "arv_range": "$80,000 to $200,000",
+  "_arv_range_help": "Buy box ARV range, used internally for the fit decision, not read verbatim. e.g. '$120k to $250k'",
+  "close_timeline": "14-day",
+  "_close_timeline_help": "How fast the investor closes. May be said if asked about terms. e.g. '14-day'",
+  "default_time_option_a": "tomorrow at 2pm",
+  "_default_time_option_a_help": "Default first callback slot offered, e.g. 'tomorrow at 2pm'. Override per call with --time-a.",
+  "default_time_option_b": "Thursday morning",
+  "_default_time_option_b_help": "Default second callback slot, e.g. 'Thursday morning'. Override per call with --time-b."
+}

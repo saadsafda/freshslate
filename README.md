@@ -14,6 +14,18 @@ Louisiana wholesaling acquisition-support agent. Implementation of Module 13.
 python3 src/parish_sweep.py --since 2026-07-01 --limit 25 --dry-run
 ```
 
+`buyer-db` builds the cash-buyer prospect list from the EBR tax roll —
+readiness-plan Part 6, the one outbound track behind no legal gate:
+
+```bash
+python3 src/buyer_db.py --min-properties 5
+```
+
+Produces name, mailing address, portfolio size, and price band for owners
+holding multiple non-homestead properties. **No phone numbers or emails** —
+the tax roll does not carry them and they are not inferred. EBR only;
+Orleans has no owner-bearing permitted source.
+
 | Parish | Source | Status |
 |---|---|---|
 | Orleans | `data.nola.gov` — code enforcement, sheriff sales | ✅ live |
@@ -76,7 +88,8 @@ A model can be argued out of an instruction. It cannot be argued out of an `if` 
 ```
 config/sources.json          machine-readable source config
 src/parish_sweep.py          deterministic extraction engine
-skills/*/SKILL.md            OpenClaw skills (7)
+src/buyer_db.py              cash-buyer / investor-owner database builder
+skills/*/SKILL.md            OpenClaw skills (8)
 workspace/                   SOUL.md, USER.md, AGENTS.md
 deals/_config/               parish-sources.md
 deals/_index/seen.json       dedup state

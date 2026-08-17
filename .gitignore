@@ -11,11 +11,20 @@ credentials/
 
 # Sweep output contains personal information about individuals in financial
 # distress. Keep it local; do not commit to a shared repo.
-deals/_inbox/*.md
-deals/_inbox/*.json
-deals/_inbox/*.jsonl
+#
+# Ignore the whole directory rather than listing extensions. The extension list
+# (.md/.json/.jsonl) missed the buyer-database CSV exports and the dot-prefixed
+# cron logs, both of which carry names and phone numbers - one `git add -A`
+# away from a public repo. An allowlist of formats is the wrong shape for a
+# directory whose entire contents are personal data.
+deals/_inbox/
 deals/_active/
 deals/_index/seen.json
+
+# Phone numbers and consent attestations for real people. The DNC registries
+# and the self-test consent records are operational data, not source. They stay
+# on the box they were collected on.
+deals/_config/dnc/
 
 __pycache__/
 *.pyc
