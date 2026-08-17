@@ -253,7 +253,37 @@ def t_extra_costs_fail_closed():
     banner = ct.warning_banner()
     if not banner:
         return "FAIL", "unapproved cost table produced no warning banner"
-    return "PASS", f"unapproved; banner enforced ({ct.approval_line[:60]}...)"
+
+    # Editing the status line must not be sufficient to clear the banner. The
+    # numbers themselves have to change. Verified against a temp copy so the
+    # real table is never touched.
+    import re as _re
+    import tempfile as _tf
+
+    with open(ct.path) as f:
+        original = f.read()
+
+    flipped = _re.sub(r"^\*\*Status:.*$",
+                      "**Status: APPROVED BY Probe ON 2026-01-01**",
+                      original, count=1, flags=_re.MULTILINE)
+
+    with _tf.NamedTemporaryFile("w", suffix=".md", delete=False) as tmp:
+        tmp.write(flipped)
+        probe_path = tmp.name
+    try:
+        probe = CostTable(probe_path)
+        if probe.approved:
+            return "FAIL", ("status line flipped to APPROVED with placeholder numbers intact "
+                            "and the table reported APPROVED - invented figures could be "
+                            "presented as operator-vetted pricing")
+        if not probe.warning_banner():
+            return "FAIL", "contradicted approval produced no banner"
+    finally:
+        os.unlink(probe_path)
+
+    return "PASS", (f"unapproved; banner enforced ({ct.approval_line[:48]}...); "
+                    f"status-line-only flip rejected, {len(probe.placeholder_markers)} "
+                    f"placeholder markers detected")
 
 
 def t_extra_file_permissions():
