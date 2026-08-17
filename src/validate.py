@@ -404,6 +404,17 @@ def t_extra_dialer_gates():
 
     original = dialer.in_call_window
     dialer.in_call_window = lambda now=None: True
+
+    # The DNC registry scrub is stubbed for the positive control below, and
+    # only for it. While the FTC and Louisiana registries are undownloaded the
+    # scrub correctly refuses every number, which would mask the one assertion
+    # here that proves this chain still lets a legitimate call through. A gate
+    # that blocks everything passes every negative test trivially; without a
+    # working positive control this test cannot tell "correct" from "broken
+    # shut". Registry behaviour itself is asserted separately, immediately
+    # after this block.
+    original_scrub = dialer.dnc.assert_callable
+    dialer.dnc.assert_callable = lambda number, self_test=False: {"allowed": True}
     try:
         d = Dialer("realtor", live=False, ghl=None)
         d.suppression = {"+15045559999"}
@@ -435,6 +446,39 @@ def t_extra_dialer_gates():
             problems.append("dial allowed outside TCPA calling window")
     finally:
         dialer.in_call_window = original
+        dialer.dnc.assert_callable = original_scrub
+
+    # With the scrub un-stubbed, the registry gate must refuse. This is the
+    # assertion that would have caught the dialer never consulting dnc.py at
+    # all: it dialed on a local suppression list alone while the federal and
+    # state registries sat undownloaded.
+    original_window = dialer.in_call_window
+    dialer.in_call_window = lambda now=None: True
+    try:
+        d2 = Dialer("realtor", live=False, ghl=None)
+        ok, reason = d2.check_contact("+15045551234", contact_type="realtor")
+        if ok:
+            problems.append("dial allowed while DNC registries are not loaded")
+        elif "REGISTRY_NOT_LOADED" not in reason and "DNC" not in reason:
+            problems.append(f"blocked, but not by the DNC scrub: {reason}")
+    finally:
+        dialer.in_call_window = original_window
+
+    # The script gate governs the words a stranger hears. Missing file, or any
+    # status other than APPROVED, must fail closed.
+    original_script = dialer.CALL_SCRIPT
+    try:
+        dialer.CALL_SCRIPT = "/nonexistent/call-script.md"
+        if dialer.script_gate_open():
+            problems.append("script gate open with the script file missing")
+        try:
+            Dialer("realtor", live=True, ghl=None).preflight()
+            problems.append("live run started with no approved call script")
+        except GateFailure as e:
+            if "call script is not approved" not in str(e):
+                problems.append("live run blocked, but not by the script gate")
+    finally:
+        dialer.CALL_SCRIPT = original_script
 
     if normalize("5045551234") != "+15045551234":
         problems.append("phone normalization broken")

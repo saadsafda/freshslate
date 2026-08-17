@@ -37,12 +37,14 @@ import urllib.request
 from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import dnc  # noqa: E402
 from ghl import GHL  # noqa: E402
 from secrets_loader import load  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SUPPRESSION = os.path.join(ROOT, "deals", "_config", "suppression-list.txt")
 CALL_LOG = os.path.join(ROOT, "deals", "_index", "calls")
+CALL_SCRIPT = os.path.join(ROOT, "deals", "_config", "call-script.md")
 
 RETELL_BASE = "https://api.retellai.com"
 
@@ -148,6 +150,28 @@ def add_to_suppression(phone, reason="", source="dialer"):
     return True
 
 
+def script_gate_open():
+    """True only if deals/_config/call-script.md reads exactly APPROVED.
+
+    This module was dialing without consulting the script gate at all. That
+    gate is the operator's sign-off on the words the AI says to a stranger on
+    the phone - the disclosure that it is an AI, that the call is recorded,
+    and who it is calling for. buyer_outreach.py read it; the dialer that
+    replaced buyer_outreach.py did not, so approving the script changed the
+    behaviour of the superseded path and nothing else. Fails closed: a missing
+    or unreadable file is not approval.
+    """
+    try:
+        with open(CALL_SCRIPT) as f:
+            for line in f:
+                s = line.strip()
+                if s.startswith("**Status:") or s.startswith("Status:"):
+                    return "✅ APPROVED" in s
+    except OSError:
+        return False
+    return False
+
+
 def in_call_window(now=None):
     now = now or central_now()
     return CALL_WINDOW[0] <= now.hour < CALL_WINDOW[1]
@@ -174,6 +198,13 @@ class Dialer:
             problems.append(
                 f"campaign {self.campaign!r} is not authorized. Client scope permits "
                 "licensed-realtor calls only."
+            )
+
+        if self.live and not script_gate_open():
+            problems.append(
+                "call script is not approved. deals/_config/call-script.md must read "
+                "'Status: ✅ APPROVED' before any live call - it is the sign-off on the "
+                "AI-disclosure and recording notice the callee actually hears."
             )
 
         if self.live:
@@ -204,6 +235,24 @@ class Dialer:
 
         if n in self.suppression:
             return False, "on local suppression list"
+
+        # The federal and Louisiana DNC registries. dnc.assert_callable is
+        # documented as "the function a live-call path must use" - this path
+        # was not using it. The local suppression list above only holds people
+        # who told *us* to stop; the registries hold everyone who told the
+        # government to stop, which is the far larger set and the one that
+        # carries the per-call penalty.
+        #
+        # Applied in dry-run too, deliberately: a dry run whose gates differ
+        # from the live run is not a rehearsal, it is a different program.
+        # While the registries are unloaded this refuses everything, which is
+        # the correct and informative answer - it fails closed.
+        try:
+            dnc.assert_callable(n)
+        except PermissionError as e:
+            return False, str(e).replace("\n", " ")
+        except Exception as e:
+            return False, f"DNC scrub unavailable, failing closed: {type(e).__name__}: {e}"
 
         if not in_call_window():
             return False, f"outside calling window ({central_now().strftime('%H:%M')} Central)"
