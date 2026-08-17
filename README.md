@@ -86,21 +86,75 @@ docs/SOURCE-RECON.md         source recon findings
 
 ---
 
+## Live integrations
+
+Credentials live in `secrets/*.env` (gitignored, `chmod 600`). Check status:
+
+```bash
+python3 src/secrets_loader.py
+```
+
+| Service | Status | Verified |
+|---|---|---|
+| Anthropic | ✅ connected | `claude-opus-5`, `claude-sonnet-5` reachable |
+| Retell | ✅ connected | agent `Morgan`, number `+1 225 384 5702` |
+| GoHighLevel | ✅ connected | Fresh Slate LLC (Baton Rouge) — 26 custom fields provisioned |
+
+```bash
+python3 src/ghl_schema.py --plan          # diff CRM schema
+python3 src/webhook_server.py --port 8080 # Retell -> GHL receiver
+python3 src/dialer.py --campaign realtor --numbers +1... --dry-run
+python3 src/sync_to_ghl.py --file deals/_inbox/YYYY-MM-DD-sweep.json --dry-run
+```
+
+**GHL note:** requests need a real `User-Agent` — Cloudflare returns `403 Error 1010`
+to Python's default, which reads like an auth failure and is not. Also, the API
+spells the money type `MONETORY`.
+
+---
+
+## The dial gate chain
+
+No number is called until every gate passes. All of them live in code, not in the
+agent prompt, because TCPA exposure is per-call.
+
+| Gate | Refuses when |
+|---|---|
+| Campaign/type match | contact is `homeowner` and campaign is `realtor` (or vice versa) |
+| CRM opt-out | GHL `dnd` flag, opt-out tag, or channel-level DND |
+| Suppression list | number in `deals/_config/suppression-list.txt` |
+| DNC assertion | homeowner campaign started without `--dnc-verified` |
+| TCPA window | outside 8am–9pm America/Chicago |
+| Run cap | more than `--max` calls in one run |
+
+Opt-outs are recorded from the **transcript**, independent of what the agent
+reported — the DNC obligation does not depend on the model classifying correctly.
+Nothing in this system un-suppresses a number programmatically.
+
+---
+
 ## Open items
 
+- [ ] **Operator cost table** — `deals/_config/costs-la.md` is placeholder figures; every
+      estimate carries a warning banner until Dr. Marigny supplies real numbers
+- [ ] **Act 807 cancellation window** — sources conflict, 5 vs 14 days. Gate fails closed
+      pending Louisiana counsel. Do not guess.
+- [ ] **A2P / DNC clearance** — required before any homeowner call
 - [ ] Jefferson Parish recon — no API found; needs form/XHR analysis, scope separately
 - [ ] Socrata app token (free) before production
-- [ ] Remaining 6 skills
-- [ ] Act 807 compliance gates — **must be counsel-owned deterministic code, not prompt text**
-- [ ] 14-point validation gate (Module 13 §13.10)
+- [ ] Public HTTPS host for the webhook receiver (Retell must reach it)
+- [ ] Manual validation tests 1–5, 9–11 (require the live VPS)
 - [ ] Confirm VPS specs (Ubuntu 22.04, 4GB) before any deployment
 
 ---
 
 ## Scope note
 
-This produces a **research list**. It does not contact anyone. Owner contact, offers, contracts,
-and funds movement are human actions outside this system — by design, per the Fresh Slate
-Deployment Standard.
+This produces a **research list** and, for realtor campaigns only, places B2B calls
+about publicly advertised listings. It never contacts a homeowner without a
+separately sourced, DNC-scrubbed number and an explicit `--dnc-verified` campaign.
+
+Offers, contracts, and funds movement are human actions outside this system — by
+design, per the Fresh Slate Deployment Standard.
 
 Records describe people in financial distress. Handle accordingly.

@@ -259,6 +259,121 @@ def t_extra_file_permissions():
     return "PASS", "no secrets or PII tracked; .gitignore covers sweep output"
 
 
+def t_extra_optout_detection():
+    """Opt-out language must be caught, and ordinary speech must not be."""
+    try:
+        from webhook_server import detect_opt_out
+    except ImportError as e:
+        return "FAIL", f"webhook_server not importable: {e}"
+
+    must_catch = [
+        "take me off your list", "do not call me again", "stop calling this number",
+        "lose my number", "don't call me anymore", "Don't contact me again",
+        "delete my number", "remove me from your list", "quit calling here",
+    ]
+    must_not = [
+        "Sure, I'd be interested in hearing more",
+        "I don't call people back usually but sure",
+        "I don't call listings that fast, but send info",
+        "Call me Tuesday afternoon",
+    ]
+    missed = [t for t in must_catch if not detect_opt_out(t)]
+    false_pos = [t for t in must_not if detect_opt_out(t)]
+
+    if missed or false_pos:
+        return "FAIL", (f"missed opt-outs: {missed}; false positives: {false_pos}")
+    return "PASS", (f"{len(must_catch)}/{len(must_catch)} opt-out phrases caught, "
+                    f"0/{len(must_not)} false positives")
+
+
+def t_extra_webhook_signature():
+    """Unsigned or forged webhooks must be rejected before the body is trusted."""
+    try:
+        from webhook_server import verify_signature
+    except ImportError as e:
+        return "FAIL", f"webhook_server not importable: {e}"
+
+    import hashlib as _h
+    import hmac as _hm
+    key = "validation_probe_key"
+    body = b'{"event":"call_ended","call":{"call_id":"probe"}}'
+    good = _hm.new(key.encode(), body, _h.sha256).hexdigest()
+
+    accept = [good, f"sha256={good}", f"v=1,{good}", f"t=1699,v1={good}", good.upper()]
+    reject = [None, "", "deadbeef", "de" * 32, good[:-1] + "0"]
+
+    bad_accept = [s for s in accept if not verify_signature(body, s, [key])]
+    bad_reject = [s for s in reject if verify_signature(body, s, [key])]
+    tampered = verify_signature(b'{"event":"forged"}', good, [key])
+
+    if bad_accept or bad_reject or tampered:
+        return "FAIL", (f"valid rejected: {len(bad_accept)}; invalid accepted: "
+                        f"{len(bad_reject)}; tampered accepted: {tampered}")
+    return "PASS", ("all valid signature forms accepted, forged/unsigned/tampered "
+                    "rejected, comparison is constant-time")
+
+
+def t_extra_dialer_gates():
+    """
+    The dial gate chain must fail closed.
+
+    Checked without network: campaign/type separation, suppression list, DNC
+    assertion for homeowner campaigns, and TCPA window.
+    """
+    try:
+        import dialer
+        from dialer import Dialer, GateFailure, normalize
+    except ImportError as e:
+        return "FAIL", f"dialer not importable: {e}"
+
+    problems = []
+
+    # Homeowner campaigns must refuse to start without an asserted DNC scrub.
+    try:
+        Dialer("homeowner", live=False, dnc_verified=False, ghl=None).preflight()
+        problems.append("homeowner campaign started WITHOUT --dnc-verified")
+    except GateFailure:
+        pass
+
+    original = dialer.in_call_window
+    dialer.in_call_window = lambda now=None: True
+    try:
+        d = Dialer("realtor", live=False, ghl=None)
+        d.suppression = {"+15045559999"}
+
+        ok, _ = d.check_contact("+15045551234", contact_type="homeowner")
+        if ok:
+            problems.append("homeowner record accepted by realtor campaign")
+
+        ok, _ = d.check_contact("+15045559999")
+        if ok:
+            problems.append("suppressed number accepted")
+
+        ok, _ = d.check_contact("not-a-phone")
+        if ok:
+            problems.append("unparseable number accepted")
+
+        ok, _ = d.check_contact("+15045551234", contact_type="realtor")
+        if not ok:
+            problems.append("clean matching number wrongly blocked")
+
+        # Outside the TCPA window nothing may dial.
+        dialer.in_call_window = lambda now=None: False
+        ok, _ = d.check_contact("+15045551234", contact_type="realtor")
+        if ok:
+            problems.append("dial allowed outside TCPA calling window")
+    finally:
+        dialer.in_call_window = original
+
+    if normalize("5045551234") != "+15045551234":
+        problems.append("phone normalization broken")
+
+    if problems:
+        return "FAIL", "; ".join(problems)
+    return "PASS", ("cross-campaign, suppression, DNC-assertion, TCPA-window and "
+                    "malformed-number gates all fail closed")
+
+
 AUTOMATED = [
     (6, "message tool denied", t6_message_tool_denied),
     (7, "exec tool denied", t7_exec_denied),
@@ -270,6 +385,9 @@ AUTOMATED = [
     ("E1", "Act 807 gate fails closed", t_extra_act807_fails_closed),
     ("E2", "Cost table fails closed", t_extra_costs_fail_closed),
     ("E3", "No secrets or PII in git", t_extra_file_permissions),
+    ("E4", "Opt-out detection", t_extra_optout_detection),
+    ("E5", "Webhook signature verification", t_extra_webhook_signature),
+    ("E6", "Dialer gate chain fails closed", t_extra_dialer_gates),
 ]
 
 # ------------------------------------------------------------------ manual
