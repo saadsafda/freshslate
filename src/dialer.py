@@ -79,24 +79,70 @@ def normalize(phone):
 
 
 def load_suppression():
-    """Local do-not-call list. Survives CRM outages; checked on every dial."""
-    if not os.path.exists(SUPPRESSION):
-        return set()
+    """Local do-not-call list. Survives CRM outages; checked on every dial.
+
+    Reads BOTH local stores and returns their union. This module grew a plain
+    suppression-list.txt while dnc.py grew an append-only internal-dnc.jsonl,
+    and for a while neither knew about the other - a number opted out through
+    one path was still dialable through the other. Two do-not-call lists is the
+    same as none: the caller only has to miss one of them to place the call a
+    consumer explicitly refused. Read both, always, and let the union win.
+    """
     out = set()
-    with open(SUPPRESSION) as f:
-        for line in f:
-            line = line.split("#")[0].strip()
-            n = normalize(line)
+
+    if os.path.exists(SUPPRESSION):
+        with open(SUPPRESSION) as f:
+            for line in f:
+                line = line.split("#")[0].strip()
+                n = normalize(line)
+                if n:
+                    out.add(n)
+
+    # dnc.py is the legally-framed store: append-only, one JSON object per
+    # entry recording who/when/why. Failing to read it must never be silent -
+    # a suppression list that quietly comes back short is worse than an error.
+    #
+    # Re-normalize every key on the way in. dnc.py stores bare 10-digit NANP
+    # ("5045550142") while this module works in E.164 ("+15045550142"), so the
+    # raw keys would never compare equal to a dial target - the numbers would
+    # sit in the set looking suppressed while every one of them stayed dialable.
+    try:
+        import dnc
+        for key in dnc.load_internal():
+            n = normalize(key)
             if n:
                 out.add(n)
+    except Exception as e:
+        raise GateFailure(
+            f"cannot read the internal DNC list ({type(e).__name__}: {e}). "
+            "Refusing to dial with an incomplete suppression list."
+        ) from e
+
     return out
 
 
-def add_to_suppression(phone, reason=""):
-    os.makedirs(os.path.dirname(SUPPRESSION), exist_ok=True)
+def add_to_suppression(phone, reason="", source="dialer"):
+    """Record an opt-out in both local stores.
+
+    Writes dnc.py's internal-dnc.jsonl first, because that is the one with the
+    audit trail; the text file is kept in sync so a human can read and hand-edit
+    it. Both are append-only - a suppression request is permanent.
+    """
     n = normalize(phone)
     if not n:
         return False
+
+    try:
+        import dnc
+        dnc.add_internal(n, reason=reason or "opt-out", source=source)
+    except Exception as e:
+        raise GateFailure(
+            f"could not record opt-out for {n} in the internal DNC list "
+            f"({type(e).__name__}: {e}). This must not be swallowed - an "
+            "unrecorded opt-out becomes a repeat call."
+        ) from e
+
+    os.makedirs(os.path.dirname(SUPPRESSION), exist_ok=True)
     with open(SUPPRESSION, "a") as f:
         f.write(f"{n}  # {_now()} {reason}\n")
     return True

@@ -189,6 +189,39 @@ def process_call_event(payload, ghl=None):
             ("dial_no_answer", "dial_busy", "voicemail_reached") else "completed"
         )
 
+    # Record the opt-out LOCALLY FIRST, before anything that can bail out.
+    #
+    # Everything below this point is conditional: no GHL client, no phone
+    # number, a non-realtor contact_type, a missing contact id - each returns
+    # early. Marking dnd=true in the CRM was the only suppression this handler
+    # did, so a GoHighLevel outage during the one call where someone said "take
+    # me off your list" meant the request was heard, acknowledged on the phone,
+    # and then dropped. The next run would dial them again.
+    #
+    # The local list is what dialer.py actually scrubs against, it needs no
+    # network, and the write is append-only. It goes first, unconditionally.
+    if result["opt_out"] and to_number:
+        try:
+            import dialer
+            dialer.add_to_suppression(
+                to_number,
+                reason=f"opt-out on call {call.get('call_id') or 'unknown'}",
+                source="retell_webhook",
+            )
+            result["actions"].append("suppressed_local")
+        except Exception as e:
+            # Loud, and recorded in the append-only event log. An opt-out we
+            # failed to persist is a compliance incident, not a log line.
+            result["actions"].append(f"SUPPRESSION_WRITE_FAILED:{type(e).__name__}")
+            log_line = (f"!!! FAILED TO RECORD OPT-OUT for {to_number} "
+                        f"(call {call.get('call_id')}): {e}")
+            print(log_line, file=sys.stderr)
+            archive("suppression_write_failed", {
+                "to_number": to_number,
+                "call_id": call.get("call_id"),
+                "error": f"{type(e).__name__}: {e}",
+            })
+
     if ghl is None or not to_number:
         return result
 
