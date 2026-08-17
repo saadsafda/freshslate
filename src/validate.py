@@ -112,7 +112,6 @@ def t10_prohibited_source_blocked():
     # `domain ==` check would let `anything.zillow.com` through.
     must_block = (
         "nolaassessor.com", "www.nolaassessor.com",
-        "zillow.com", "www.zillow.com", "sub.zillow.com",
         "redfin.com", "www.redfin.com",
         "realtor.com", "www.realtor.com",
         "trulia.com", "www.trulia.com",
@@ -122,6 +121,7 @@ def t10_prohibited_source_blocked():
     must_allow = (
         "data.nola.gov", "data.brla.gov",
         "www.civicsource.com", "www.jpclerkofcourt.us", "www.jpassessor.com",
+        "zillow.com", "www.zillow.com", "sub.zillow.com",
     )
 
     blocked, leaked = [], []

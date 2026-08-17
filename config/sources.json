@@ -93,19 +93,23 @@
     "jefferson": {
       "name": "Jefferson Parish",
       "enabled": false,
-      "disabled_reason": "Recon complete (docs/SOURCE-RECON.md section 7); extraction not built. No open-data API exists - each source needs form/XHR analysis. Do not improvise a source.",
+      "disabled_reason": "No permitted scrapable source exists. Tax-delinquency and adjudicated data must come via public records request - see docs/JEFFERSON-RECORDS-REQUEST.md. Do not improvise a source.",
       "recon_date": "2026-08-17",
+      "acquisition_route": "public_records_request",
+      "acquisition_doc": "docs/JEFFERSON-RECORDS-REQUEST.md",
       "candidate_sources": [
         {
           "id": "jefferson-civicsource",
           "host": "www.civicsource.com",
           "signal_type": "tax_delinquency",
           "label": "CivicSource tax sale / adjudicated property auctions",
-          "robots_verdict": "permitted",
-          "robots_detail": "robots.txt present, zero Disallow directives",
-          "rate_limit_seconds": 2.0,
-          "priority": 1,
-          "note": "Highest-value Jefferson lead: the platform Louisiana parishes use for tax sale and adjudicated property. Carries the exact distress signal the sweep targets."
+          "robots_verdict": "PROHIBITED_BY_TERMS",
+          "robots_detail": "robots.txt has zero Disallow directives, but the Terms of Use prohibit monitoring 'through the use of a robot, spider, or other similar device or method'. The ToS governs. Initial 'go' verdict was corrected same-day.",
+          "tos_quote": "you will not copy, modify, sell, distribute, reverse engineer, or monitor (through the use of a robot, spider, or other similar device or method) any portion of the Website or any information contained on the Website",
+          "tos_url": "https://www.civicsource.com/terms-of-use",
+          "tos_retrieved": "2026-08-17",
+          "priority": null,
+          "note": "DO NOT BUILD AGAINST THIS. A scheduled sweep is robot monitoring, which is the named prohibited activity. An empty robots.txt is not permission."
         },
         {
           "id": "jefferson-clerk",
@@ -143,10 +147,21 @@
           "id": "jefferson-sheriff",
           "host": "jpso.com",
           "signal_type": "foreclosure",
-          "label": "Jefferson Parish Sheriff",
+          "label": "Jefferson Parish Sheriff (tax collector)",
           "robots_verdict": "unknown",
-          "robots_detail": "Host did not respond during recon (2026-08-17). Recheck before use.",
-          "priority": 5
+          "robots_detail": "Host did not respond during recon (2026-08-17) from this network; may be filtering rather than an outage. Verify by phone before assuming it is down.",
+          "priority": 5,
+          "note": "The Sheriff is the tax collector in Louisiana parishes, so the delinquent tax roll most likely lives here. Primary target of the public records request."
+        },
+        {
+          "id": "jefferson-records-request",
+          "host": "jeffersonparishla.nextrequest.com",
+          "signal_type": "tax_delinquency",
+          "label": "Jefferson Parish public records portal (NextRequest)",
+          "robots_verdict": "human_submission_only",
+          "robots_detail": "Government records intake portal behind bot protection. Submit through a browser; never automate. This is a request channel, not a data source.",
+          "priority": 1,
+          "note": "RECOMMENDED ROUTE. No ToS conflict, returns bulk CSV rather than paginated HTML, and produces an auditable provenance document. See docs/JEFFERSON-RECORDS-REQUEST.md."
         }
       ],
       "sources": []

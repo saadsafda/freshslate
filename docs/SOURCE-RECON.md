@@ -177,7 +177,7 @@ resolve. So each candidate source was checked individually against its published
 | Parish government | `jeffparish.net` → **`jeffparish.gov`** | 200; blocks `/admin`, `/search.asp*`, Baidu/Yandex site-wide | 🟡 **partial** — content paths permitted, search endpoints disallowed |
 | Assessor | `www.jpassessor.com` | 200; **comments only, zero active directives** | 🟢 **go** — no restriction expressed |
 | Clerk of Court | `www.jpclerkofcourt.us` | 200; blocks `/wp-admin/`, **`Crawl-delay: 10`** | 🟢 **go at 1 req / 10 s** |
-| Tax sale platform | `www.civicsource.com` | 200; no `Disallow` at all | 🟢 **go** |
+| Tax sale platform | `www.civicsource.com` | 200; no `Disallow` at all | ⛔ **SKIP — see correction below** |
 | Sheriff | `jpso.com` | no response (000) | ⛔ **unreachable** — recheck later |
 
 ### Notes that matter
@@ -197,9 +197,32 @@ crawler honestly, keep volume low, and stop on any block. Contrast with
 not negotiable — it is the operator's stated limit. Any Jefferson extraction must
 honor it per-host, not use the 1 req/s default that Orleans and EBR allow.
 
-**CivicSource is the strongest Jefferson lead.** It is the platform Louisiana
-parishes use for tax sale and adjudicated property auctions — exactly the distress
-signal the sweep looks for — and it expresses no crawl restriction whatsoever.
+### ⛔ CORRECTION (2026-08-17, same day): CivicSource is a SKIP
+
+My initial verdict — "no crawl restriction whatsoever, strongest Jefferson lead" —
+was **wrong**, and it was wrong because I stopped at `robots.txt`. Reading the Terms
+of Use before writing extraction code turned it up:
+
+> "...you will not copy, modify, sell, distribute, reverse engineer, or **monitor
+> (through the use of a robot, spider, or other similar device or method)** any
+> portion of the Website or any information contained on the Website."
+>
+> — civicsource.com/terms-of-use, retrieved 2026-08-17
+
+A scheduled sweep watching for new Jefferson tax-sale properties *is* monitoring by
+robot. That is the named activity. **The ToS governs where it conflicts with a
+permissive `robots.txt`**, and here it does — the file has zero `Disallow`
+directives while the terms prohibit the exact use case.
+
+Recorded rather than quietly amended, because the failure mode is instructive and
+Module 13 teaches this beat: an empty `robots.txt` is not permission. It is the
+absence of one machine-readable signal, and the terms are the other half. Prompt 1.2
+of the Build Day playbook ("ToS read") exists for precisely this and it earned its
+place here.
+
+**Consequence:** Jefferson has no permitted *scrapable* source for tax delinquency
+and adjudicated property. That signal must come from a public records request
+instead (§7.1).
 
 ### Jefferson is *not* wired in yet
 
