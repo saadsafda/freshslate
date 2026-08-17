@@ -106,22 +106,45 @@ def t10_prohibited_source_blocked():
     from parish_sweep import assert_host_permitted, load_config
 
     cfg = load_config()
+
+    # Each host below expressly restricts automated collection in its own
+    # robots.txt or terms. Subdomain forms are included because a bare
+    # `domain ==` check would let `anything.zillow.com` through.
+    must_block = (
+        "nolaassessor.com", "www.nolaassessor.com",
+        "zillow.com", "www.zillow.com", "sub.zillow.com",
+        "redfin.com", "www.redfin.com",
+        "realtor.com", "www.realtor.com",
+        "trulia.com", "www.trulia.com",
+    )
+    # Permitted sources must stay reachable -- a gate that blocks everything is
+    # not a passing gate.
+    must_allow = (
+        "data.nola.gov", "data.brla.gov",
+        "www.civicsource.com", "www.jpclerkofcourt.us", "www.jpassessor.com",
+    )
+
     blocked, leaked = [], []
-    for host in ("nolaassessor.com", "www.nolaassessor.com"):
+    for host in must_block:
         try:
             assert_host_permitted(cfg, host)
             leaked.append(host)
         except PermissionError:
             blocked.append(host)
 
-    try:
-        assert_host_permitted(cfg, "data.nola.gov")
-    except PermissionError:
-        return "FAIL", "data.nola.gov incorrectly blocked - permitted source unreachable"
+    over_blocked = []
+    for host in must_allow:
+        try:
+            assert_host_permitted(cfg, host)
+        except PermissionError:
+            over_blocked.append(host)
 
     if leaked:
         return "FAIL", f"prohibited hosts NOT blocked: {leaked}"
-    return "PASS", f"blocked {blocked}; permitted source still reachable"
+    if over_blocked:
+        return "FAIL", f"permitted sources incorrectly blocked: {over_blocked}"
+    return "PASS", (f"{len(blocked)} prohibited hosts blocked (incl. subdomains); "
+                    f"{len(must_allow)} permitted sources still reachable")
 
 
 def t12_citation_discipline():

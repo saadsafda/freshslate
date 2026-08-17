@@ -4,9 +4,18 @@
   "rate_limit_seconds": 1.0,
   "page_size": 1000,
 
+  "_prohibited_hosts_note": "Blocked in code by assert_host_permitted(), which raises before any request. Each entry expressly restricts automated collection in its own robots.txt or terms. Removing an entry is a legal decision, not a technical one.",
   "prohibited_hosts": [
     "nolaassessor.com",
-    "www.nolaassessor.com"
+    "www.nolaassessor.com",
+    "zillow.com",
+    "www.zillow.com",
+    "redfin.com",
+    "www.redfin.com",
+    "realtor.com",
+    "www.realtor.com",
+    "trulia.com",
+    "www.trulia.com"
   ],
 
   "parishes": {
@@ -84,7 +93,62 @@
     "jefferson": {
       "name": "Jefferson Parish",
       "enabled": false,
-      "disabled_reason": "Recon incomplete - no permitted open-data API identified. Requires form/XHR analysis. Do not improvise a source.",
+      "disabled_reason": "Recon complete (docs/SOURCE-RECON.md section 7); extraction not built. No open-data API exists - each source needs form/XHR analysis. Do not improvise a source.",
+      "recon_date": "2026-08-17",
+      "candidate_sources": [
+        {
+          "id": "jefferson-civicsource",
+          "host": "www.civicsource.com",
+          "signal_type": "tax_delinquency",
+          "label": "CivicSource tax sale / adjudicated property auctions",
+          "robots_verdict": "permitted",
+          "robots_detail": "robots.txt present, zero Disallow directives",
+          "rate_limit_seconds": 2.0,
+          "priority": 1,
+          "note": "Highest-value Jefferson lead: the platform Louisiana parishes use for tax sale and adjudicated property. Carries the exact distress signal the sweep targets."
+        },
+        {
+          "id": "jefferson-clerk",
+          "host": "www.jpclerkofcourt.us",
+          "signal_type": "succession",
+          "label": "Jefferson Parish Clerk of Court",
+          "robots_verdict": "permitted_rate_limited",
+          "robots_detail": "Disallow /wp-admin/ only; Crawl-delay: 10 published by the operator",
+          "rate_limit_seconds": 10.0,
+          "priority": 2,
+          "note": "Crawl-delay 10 is the site operator's stated limit and overrides the global 1 req/s default."
+        },
+        {
+          "id": "jefferson-assessor",
+          "host": "www.jpassessor.com",
+          "signal_type": "tax_roll",
+          "label": "Jefferson Parish Assessor",
+          "robots_verdict": "unrestricted_not_granted",
+          "robots_detail": "robots.txt contains Cloudflare content-signal boilerplate as comments only; no signal set. Per the file's own paragraph (c) this neither grants nor restricts.",
+          "rate_limit_seconds": 3.0,
+          "priority": 3,
+          "note": "Go with restraint, not go without limit. Absent signal is not affirmative permission - low volume, honest UA, stop on any block."
+        },
+        {
+          "id": "jefferson-parish-gov",
+          "host": "www.jeffparish.gov",
+          "signal_type": "code_violation",
+          "label": "Jefferson Parish government",
+          "robots_verdict": "partial",
+          "robots_detail": "Content paths permitted; /admin, /search.asp*, /search.aspx* disallowed. jeffparish.net redirects here - use the .gov host.",
+          "rate_limit_seconds": 2.0,
+          "priority": 4
+        },
+        {
+          "id": "jefferson-sheriff",
+          "host": "jpso.com",
+          "signal_type": "foreclosure",
+          "label": "Jefferson Parish Sheriff",
+          "robots_verdict": "unknown",
+          "robots_detail": "Host did not respond during recon (2026-08-17). Recheck before use.",
+          "priority": 5
+        }
+      ],
       "sources": []
     }
   }
