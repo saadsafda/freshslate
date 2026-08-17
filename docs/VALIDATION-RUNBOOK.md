@@ -15,8 +15,8 @@ python3 src/validate.py --report   # also write a dated evidence file
 
 | Class | Count | Status |
 |---|---|---|
-| Automated (verified by script) | 10 | 🟢 10/10 passing |
-| Manual (require live server) | 7 | ⬜ not yet run |
+| Automated (verified by script) | 13 | 🟢 13/13 passing |
+| Manual (require live server) | 8 | ⬜ not yet run |
 
 Automated tests cover: `message`/`exec` tool denial, prompt-injection detection, prohibited-source
 blocking, citation discipline, fabrication probes, human-in-the-loop constraints, Act 807 gate,
@@ -82,7 +82,7 @@ references to malicious packages.
 
 1. **OpenClaw is running as `root`.** Create a non-root operator user; scope the filesystem MCP
    to that user's deals directory only.
-2. **Manual tests 1–5, 9, 11 not yet run** — require the live server.
+2. **Manual tests 1–5 and 9–11 not yet run** — require the live server.
 3. **Act 807 gate is closed** — counsel must resolve the 5-vs-14 cancellation conflict.
 4. **Cost table is TESTING** — synthetic figures, not operator-approved.
 

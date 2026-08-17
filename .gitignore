@@ -2,7 +2,7 @@
 .env
 *.env
 !*.env.example
-secrets/*
+secrets/
 !secrets/*.env.example
 *.key
 *.pem
@@ -31,3 +31,8 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+
+# Call logs contain phone numbers, transcripts, and opt-out records.
+# Suppression list is a do-not-call register. Both are PII — keep local.
+deals/_index/calls/
+deals/_config/suppression-list.txt

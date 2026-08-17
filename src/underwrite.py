@@ -54,12 +54,35 @@ class CostTable:
         self.approval_line = m.group(0) if m else "(no status line)"
         upper = m.group(0).upper() if m else ""
         self.testing = "TESTING" in upper
-        self.approved = bool(
+        claims_approved = bool(
             m and "APPROVED" in upper
             and "NOT OPERATOR-APPROVED" not in upper
             and "NOT APPROVED" not in upper
             and not self.testing
         )
+
+        # A status line is a claim, not evidence. Editing one word must not be
+        # enough to turn invented figures into approved pricing -- that is the
+        # exact failure the banner exists to prevent, and it is a plausible
+        # accident (someone flips the line intending to fill the numbers "next").
+        #
+        # So approval also requires that the placeholder scaffolding is GONE:
+        # the "Approved by: nobody" line, the "every number is a placeholder"
+        # warning, and the Placeholder column header. Whoever supplies real
+        # numbers necessarily removes them; whoever only edits the status line
+        # does not.
+        self.placeholder_markers = []
+        for pat, label in [
+            (r"_nobody\s*—.*placeholder", "'Approved by: nobody' line still present"),
+            (r"Every number below is a \*\*placeholder\*\*", "'every number is a placeholder' warning still present"),
+            (r"\|\s*Placeholder\s*\|", "'Placeholder' column header still present"),
+            (r"Claude-generated placeholder figures", "'Claude-generated placeholder figures' note still present"),
+        ]:
+            if re.search(pat, text, re.IGNORECASE):
+                self.placeholder_markers.append(label)
+
+        self.approved = claims_approved and not self.placeholder_markers
+        self.approval_contradicted = claims_approved and bool(self.placeholder_markers)
 
         # Table rows: | Item | Unit | $Cost | Notes |
         for row in re.finditer(
@@ -102,6 +125,19 @@ class CostTable:
     def warning_banner(self):
         if self.approved:
             return None
+        if self.approval_contradicted:
+            markers = "; ".join(self.placeholder_markers)
+            return (
+                "🛑 **APPROVAL CLAIMED BUT NOT VERIFIED — OFFER BLOCKED.** The status line says "
+                "APPROVED, but the cost table still carries its placeholder scaffolding, which "
+                "means the underlying numbers were never replaced. Flipping the status line does "
+                "not make invented figures real.\n\n"
+                f"Still present: {markers}.\n\n"
+                "**To resolve:** replace the placeholder unit costs with the operator's actual "
+                "figures (see `docs/COST-INTAKE.md`), delete the placeholder warnings and the "
+                "'Approved by: nobody' line, and rename the `Placeholder` column to `Cost`. "
+                "The banner then clears on its own."
+            )
         if self.testing:
             return (
                 "🧪 **TESTING MODE — SYNTHETIC COSTS.** The unit prices behind this estimate are "

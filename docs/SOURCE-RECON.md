@@ -191,10 +191,114 @@ timestamp.
 
 ---
 
-## 7. Open items
+## 7. Jefferson Parish — recon (2026-08-17)
+
+Jefferson has no Socrata portal. `data.`, `opendata.`, and `gis.jeffparish.gov` do not
+resolve. So each candidate source was checked individually against its published
+`robots.txt`.
+
+| Source | Host | robots.txt | Verdict |
+|---|---|---|---|
+| Parish government | `jeffparish.net` → **`jeffparish.gov`** | 200; blocks `/admin`, `/search.asp*`, Baidu/Yandex site-wide | 🟡 **partial** — content paths permitted, search endpoints disallowed |
+| Assessor | `www.jpassessor.com` | 200; **comments only, zero active directives** | 🟢 **go** — no restriction expressed |
+| Clerk of Court | `www.jpclerkofcourt.us` | 200; blocks `/wp-admin/`, **`Crawl-delay: 10`** | 🟢 **go at 1 req / 10 s** |
+| Tax sale platform | `www.civicsource.com` | 200; no `Disallow` at all | ⛔ **SKIP — see correction below** |
+| Sheriff | `jpso.com` | no response (000) | ⛔ **unreachable** — recheck later |
+
+### Notes that matter
+
+**`jeffparish.net` redirects to `jeffparish.gov`.** Any config naming the `.net` host
+is pointing at a redirect. Use `.gov`.
+
+**The Assessor's `robots.txt` is entirely commented out.** It ships Cloudflare's
+content-signals boilerplate explaining the `search` / `ai-input` / `ai-train`
+vocabulary — and then sets *none of them*. Under the file's own paragraph (c), an
+absent signal "neither grants nor restricts permission." That is not affirmative
+permission, so it is **go with restraint**, not go without limit: identify the
+crawler honestly, keep volume low, and stop on any block. Contrast with
+`nolaassessor.com`, which expressly reserves rights — that one stays blocked in code.
+
+**The Clerk publishes `Crawl-delay: 10`.** Ten seconds per request is slow and it is
+not negotiable — it is the operator's stated limit. Any Jefferson extraction must
+honor it per-host, not use the 1 req/s default that Orleans and EBR allow.
+
+### ⛔ CORRECTION (2026-08-17, same day): CivicSource is a SKIP
+
+My initial verdict — "no crawl restriction whatsoever, strongest Jefferson lead" —
+was **wrong**, and it was wrong because I stopped at `robots.txt`. Reading the Terms
+of Use before writing extraction code turned it up:
+
+> "...you will not copy, modify, sell, distribute, reverse engineer, or **monitor
+> (through the use of a robot, spider, or other similar device or method)** any
+> portion of the Website or any information contained on the Website."
+>
+> — civicsource.com/terms-of-use, retrieved 2026-08-17
+
+A scheduled sweep watching for new Jefferson tax-sale properties *is* monitoring by
+robot. That is the named activity. **The ToS governs where it conflicts with a
+permissive `robots.txt`**, and here it does — the file has zero `Disallow`
+directives while the terms prohibit the exact use case.
+
+Recorded rather than quietly amended, because the failure mode is instructive and
+Module 13 teaches this beat: an empty `robots.txt` is not permission. It is the
+absence of one machine-readable signal, and the terms are the other half. Prompt 1.2
+of the Build Day playbook ("ToS read") exists for precisely this and it earned its
+place here.
+
+**Consequence:** Jefferson has no permitted *scrapable* source for tax delinquency
+and adjudicated property. That signal must come from a public records request
+instead (§7.1).
+
+### Jefferson is *not* wired in yet
+
+The recon is done; no permitted bulk API was found. The recommended acquisition
+route is now a manual public-records request, documented in
+`docs/JEFFERSON-RECORDS-REQUEST.md`, followed by deterministic ingestion of the
+returned CSV. `config/sources.json` lists Jefferson as `enabled: false`, and the
+sweep reports it as not configured rather than silently returning nothing.
+
+### Zillow — asked for, declined (2026-08-17)
+
+A Zillow scrape of `/homes/for_sale/2743_rid/` (Jefferson region ID) was requested.
+Zillow's live `robots.txt` disallows it on three independent rules:
+
+```
+Disallow: /homes/            the entire tree the URL sits in
+Disallow: /*_rid             every region-ID search, named explicitly
+Disallow: /*/foreclosed/*    the distress path specifically
+Disallow: /api/              the underlying JSON endpoint
+```
+
+The `Allow:` lines in that file are exact-match anchored (`.../$`) and cover only bare
+landing pages. **No `Allow` rule mentions `_rid`.** There is no blanket `Disallow: /`,
+which means these are deliberate, enumerated rules rather than a catch-all.
+
+Declined for three reasons, in order of weight:
+
+1. **The site says no**, on the exact path, in a machine-readable file. This codebase
+   already blocks `nolaassessor.com` for a *weaker* reservation, and validation Test 10
+   verifies that block. Enforcing one site's robots.txt while ignoring another's is the
+   inconsistency an opposing attorney or LREC complaint would lead with.
+2. **`Disallow: /api/` closes the clean route.** What remains is browser automation
+   against active anti-bot defenses — fragile, and it breaks the "deterministic
+   extraction, no browser in the loop" property that makes the sweep cheap and auditable.
+3. **It is the wrong data.** `for_sale` is on-market, agent-represented inventory.
+   The Fresh Slate thesis is pre-market distress. Zillow does not carry tax
+   delinquency, adjudication, or code violations.
+
+**If listing data is the actual goal** — e.g. to feed the realtor voice campaign, which
+calls agents about publicly advertised listings — the licensed route is an MLS/IDX feed.
+In Jefferson that is GSREIN. IDX returns listing agent name and direct phone as
+structured fields, which is strictly more than scraping the page would yield.
+
+---
+
+## 8. Open items
 
 - [ ] Register Socrata app token (free) before production
-- [ ] Jefferson Parish deep recon — scope separately, do not promise for seminar
+- [ ] Submit the Jefferson public-records request and build ingestion against the returned format
+- [ ] Recheck `jpso.com` (unreachable at recon time)
+- [ ] GSREIN / MLS IDX license if listing data is required
 - [ ] Resolve Orleans owner-of-record from a permitted source, or accept null
 - [ ] Confirm each dataset's terms of use / attribution requirement
 - [ ] Counsel review: Act 807 gates (separate track, not blocked by this)

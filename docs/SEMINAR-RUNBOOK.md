@@ -24,7 +24,8 @@ cd /path/to/harmain
 python3 src/validate.py
 ```
 
-Expect `Automated: 10/10 passed.` If anything is red, fix it or drop that demo.
+Expect every automated control to pass (currently `Automated: 13/13 passed.`). If anything is
+red, fix it or drop that demo.
 
 **Have ready:**
 - Terminal, font size 18pt+, dark background
@@ -127,9 +128,9 @@ mind."*
 python3 src/validate.py
 ```
 
-→ `Automated: 10/10 passed.`
+→ `Automated: 13/13 passed.`
 
-**Say:** *"Ten controls, verified. And I broke each one deliberately to confirm the tests
+**Say:** *"Thirteen controls, verified. And I broke each one deliberately to confirm the tests
 actually catch it — a green checklist that can't go red is decoration."*
 
 ---

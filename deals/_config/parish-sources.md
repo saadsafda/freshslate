@@ -2,7 +2,7 @@
 
 Read by the `parish-sweep` skill. Machine-readable mirror: `config/sources.json`.
 
-**Last verified:** 2026-08-04 — see `docs/SOURCE-RECON.md` for the full recon.
+**Last verified:** 2026-08-17 — see `docs/SOURCE-RECON.md` for the full recon.
 
 ---
 
@@ -55,7 +55,7 @@ requires a valuation source we do not currently have. Emit `equity_estimate: nul
 
 ## Jefferson Parish
 
-**Status: NOT CONFIGURED — confirmed no usable source (2026-08-12).**
+**Status: NOT CONFIGURED for automated collection — use a public-records request.**
 
 Jefferson Parish GIS Dept does run an official open-data portal
 (`jefferson-parish-data-transparency-jpgis.hub.arcgis.com`) — full 204-item catalog checked
@@ -66,9 +66,21 @@ facilities data only. See `docs/SOURCE-RECON.md` §4 for the full check.
 The only other surfaces (`JeffMap` web map app, `jpassessor.com`, a third-party assessor
 viewer) are interactive applications, not APIs — extraction would require form/XHR analysis,
 estimated at 1-2 weeks of dedicated work, and untested against those sites' terms of use.
+CivicSource is prohibited for automated monitoring by its Terms of Use.
+
+**The supported route is manual:** submit the public-records request in
+`docs/JEFFERSON-RECORDS-REQUEST.md` to the Jefferson portal and ingest the returned CSV.
+That is a person asking a records office for records — it is not scraping, and nothing
+about it is blocked by the recon above.
 
 `parish-sweep` must **skip Jefferson and report it as unconfigured.** Do not improvise a
 source.
+
+### Explicitly prohibited automated hosts
+
+The machine-readable list in `config/sources.json` is the enforcement source. It blocks
+`nolaassessor.com`, CivicSource, Zillow, Redfin, Realtor.com, Trulia, and all of their
+subdomains. Do not use proxies, alternate user agents, or a separate script to bypass it.
 
 ---
 

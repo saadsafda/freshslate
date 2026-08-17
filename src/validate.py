@@ -106,22 +106,57 @@ def t10_prohibited_source_blocked():
     from parish_sweep import assert_host_permitted, load_config
 
     cfg = load_config()
+
+    # Each host below expressly restricts automated collection in its own
+    # robots.txt or terms. Subdomain forms are included because a bare
+    # `domain ==` check would let `anything.zillow.com` through.
+    must_block = (
+        "nolaassessor.com", "www.nolaassessor.com",
+        "civicsource.com", "www.civicsource.com",
+        "zillow.com", "www.zillow.com", "sub.zillow.com",
+        "redfin.com", "www.redfin.com",
+        "realtor.com", "www.realtor.com",
+        "trulia.com", "www.trulia.com",
+    )
+    # Permitted sources must stay reachable -- a gate that blocks everything is
+    # not a passing gate.
+    must_allow = (
+        "data.nola.gov", "data.brla.gov",
+        "www.jpclerkofcourt.us", "www.jpassessor.com",
+    )
+
     blocked, leaked = [], []
-    for host in ("nolaassessor.com", "www.nolaassessor.com"):
+
+    # A legacy Zillow utility remains in the repository for its pure parsing
+    # helpers. Confirm that its network client cannot bypass the central source
+    # policy even when called directly.
+    try:
+        from zillow_scraper import ZillowScraper
+        ZillowScraper()
+        leaked.append("ZillowScraper direct client")
+    except PermissionError:
+        blocked.append("ZillowScraper direct client")
+
+    for host in must_block:
         try:
             assert_host_permitted(cfg, host)
             leaked.append(host)
         except PermissionError:
             blocked.append(host)
 
-    try:
-        assert_host_permitted(cfg, "data.nola.gov")
-    except PermissionError:
-        return "FAIL", "data.nola.gov incorrectly blocked - permitted source unreachable"
+    over_blocked = []
+    for host in must_allow:
+        try:
+            assert_host_permitted(cfg, host)
+        except PermissionError:
+            over_blocked.append(host)
 
     if leaked:
         return "FAIL", f"prohibited hosts NOT blocked: {leaked}"
-    return "PASS", f"blocked {blocked}; permitted source still reachable"
+    if over_blocked:
+        return "FAIL", f"permitted sources incorrectly blocked: {over_blocked}"
+    return "PASS", (f"{len(blocked)} prohibited hosts blocked (incl. subdomains); "
+                    f"{len(must_allow)} permitted sources still reachable")
 
 
 def t12_citation_discipline():
@@ -230,7 +265,37 @@ def t_extra_costs_fail_closed():
     banner = ct.warning_banner()
     if not banner:
         return "FAIL", "unapproved cost table produced no warning banner"
-    return "PASS", f"unapproved; banner enforced ({ct.approval_line[:60]}...)"
+
+    # Editing the status line must not be sufficient to clear the banner. The
+    # numbers themselves have to change. Verified against a temp copy so the
+    # real table is never touched.
+    import re as _re
+    import tempfile as _tf
+
+    with open(ct.path) as f:
+        original = f.read()
+
+    flipped = _re.sub(r"^\*\*Status:.*$",
+                      "**Status: APPROVED BY Probe ON 2026-01-01**",
+                      original, count=1, flags=_re.MULTILINE)
+
+    with _tf.NamedTemporaryFile("w", suffix=".md", delete=False) as tmp:
+        tmp.write(flipped)
+        probe_path = tmp.name
+    try:
+        probe = CostTable(probe_path)
+        if probe.approved:
+            return "FAIL", ("status line flipped to APPROVED with placeholder numbers intact "
+                            "and the table reported APPROVED - invented figures could be "
+                            "presented as operator-vetted pricing")
+        if not probe.warning_banner():
+            return "FAIL", "contradicted approval produced no banner"
+    finally:
+        os.unlink(probe_path)
+
+    return "PASS", (f"unapproved; banner enforced ({ct.approval_line[:48]}...); "
+                    f"status-line-only flip rejected, {len(probe.placeholder_markers)} "
+                    f"placeholder markers detected")
 
 
 def t_extra_file_permissions():
@@ -259,6 +324,147 @@ def t_extra_file_permissions():
     return "PASS", "no secrets or PII tracked; .gitignore covers sweep output"
 
 
+def t_extra_optout_detection():
+    """Opt-out language must be caught, and ordinary speech must not be."""
+    try:
+        from webhook_server import detect_opt_out
+    except ImportError as e:
+        return "FAIL", f"webhook_server not importable: {e}"
+
+    must_catch = [
+        "take me off your list", "do not call me again", "stop calling this number",
+        "lose my number", "don't call me anymore", "Don't contact me again",
+        "delete my number", "remove me from your list", "quit calling here",
+    ]
+    must_not = [
+        "Sure, I'd be interested in hearing more",
+        "I don't call people back usually but sure",
+        "I don't call listings that fast, but send info",
+        "Call me Tuesday afternoon",
+    ]
+    missed = [t for t in must_catch if not detect_opt_out(t)]
+    false_pos = [t for t in must_not if detect_opt_out(t)]
+
+    if missed or false_pos:
+        return "FAIL", (f"missed opt-outs: {missed}; false positives: {false_pos}")
+    return "PASS", (f"{len(must_catch)}/{len(must_catch)} opt-out phrases caught, "
+                    f"0/{len(must_not)} false positives")
+
+
+def t_extra_webhook_signature():
+    """Unsigned or forged webhooks must be rejected before the body is trusted."""
+    try:
+        from webhook_server import verify_signature
+    except ImportError as e:
+        return "FAIL", f"webhook_server not importable: {e}"
+
+    import hashlib as _h
+    import hmac as _hm
+    key = "validation_probe_key"
+    body = b'{"event":"call_ended","call":{"call_id":"probe"}}'
+    good = _hm.new(key.encode(), body, _h.sha256).hexdigest()
+
+    accept = [good, f"sha256={good}", f"v=1,{good}", f"t=1699,v1={good}", good.upper()]
+    reject = [None, "", "deadbeef", "de" * 32, good[:-1] + "0"]
+
+    bad_accept = [s for s in accept if not verify_signature(body, s, [key])]
+    bad_reject = [s for s in reject if verify_signature(body, s, [key])]
+    tampered = verify_signature(b'{"event":"forged"}', good, [key])
+
+    if bad_accept or bad_reject or tampered:
+        return "FAIL", (f"valid rejected: {len(bad_accept)}; invalid accepted: "
+                        f"{len(bad_reject)}; tampered accepted: {tampered}")
+    return "PASS", ("all valid signature forms accepted, forged/unsigned/tampered "
+                    "rejected, comparison is constant-time")
+
+
+def t_extra_dialer_gates():
+    """
+    The dial gate chain must fail closed.
+
+    Checked without network: realtor-only campaign authorization, mandatory
+    contact typing, suppression list, and TCPA window.
+    """
+    try:
+        import dialer
+        from dialer import Dialer, GateFailure, normalize
+        from webhook_server import process_call_event
+    except ImportError as e:
+        return "FAIL", f"dialer not importable: {e}"
+
+    problems = []
+
+    # Homeowner campaigns are outside the client's authorized scope, regardless
+    # of DNC status or any other flag.
+    try:
+        Dialer("homeowner", live=False, ghl=None).preflight()
+        problems.append("homeowner campaign started despite realtor-only scope")
+    except GateFailure:
+        pass
+
+    original = dialer.in_call_window
+    dialer.in_call_window = lambda now=None: True
+    try:
+        d = Dialer("realtor", live=False, ghl=None)
+        d.suppression = {"+15045559999"}
+
+        ok, _ = d.check_contact("+15045551234", contact_type="homeowner")
+        if ok:
+            problems.append("homeowner record accepted by realtor campaign")
+
+        ok, _ = d.check_contact("+15045551234", contact_type=None)
+        if ok:
+            problems.append("untyped record accepted by realtor campaign")
+
+        ok, _ = d.check_contact("+15045559999")
+        if ok:
+            problems.append("suppressed number accepted")
+
+        ok, _ = d.check_contact("not-a-phone")
+        if ok:
+            problems.append("unparseable number accepted")
+
+        ok, _ = d.check_contact("+15045551234", contact_type="realtor")
+        if not ok:
+            problems.append("clean matching number wrongly blocked")
+
+        # Outside the TCPA window nothing may dial.
+        dialer.in_call_window = lambda now=None: False
+        ok, _ = d.check_contact("+15045551234", contact_type="realtor")
+        if ok:
+            problems.append("dial allowed outside TCPA calling window")
+    finally:
+        dialer.in_call_window = original
+
+    if normalize("5045551234") != "+15045551234":
+        problems.append("phone normalization broken")
+
+    class _NoCRMCalls:
+        """Any method call means a non-realtor webhook escaped quarantine."""
+        def __getattr__(self, name):
+            raise AssertionError(f"CRM method unexpectedly called: {name}")
+
+    non_realtor_event = {
+        "event": "call_ended",
+        "call": {
+            "call_id": "scope-probe",
+            "to_number": "+15045551234",
+            "retell_llm_dynamic_variables": {"contact_type": "homeowner"},
+        },
+    }
+    try:
+        quarantine = process_call_event(non_realtor_event, ghl=_NoCRMCalls())
+        if "quarantined:non_realtor_contact_type" not in quarantine.get("actions", []):
+            problems.append("non-realtor webhook was not explicitly quarantined")
+    except AssertionError as e:
+        problems.append(str(e))
+
+    if problems:
+        return "FAIL", "; ".join(problems)
+    return "PASS", ("realtor-only scope, mandatory contact type, suppression, "
+                    "TCPA-window and malformed-number gates all fail closed")
+
+
 AUTOMATED = [
     (6, "message tool denied", t6_message_tool_denied),
     (7, "exec tool denied", t7_exec_denied),
@@ -270,6 +476,9 @@ AUTOMATED = [
     ("E1", "Act 807 gate fails closed", t_extra_act807_fails_closed),
     ("E2", "Cost table fails closed", t_extra_costs_fail_closed),
     ("E3", "No secrets or PII in git", t_extra_file_permissions),
+    ("E4", "Opt-out detection", t_extra_optout_detection),
+    ("E5", "Webhook signature verification", t_extra_webhook_signature),
+    ("E6", "Dialer gate chain fails closed", t_extra_dialer_gates),
 ]
 
 # ------------------------------------------------------------------ manual
